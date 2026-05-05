@@ -1,6 +1,7 @@
 import type { CliOptions } from "./types.js";
 
 const DEFAULT_MAX_CHARS = 120000;
+const DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
 
 export class HelpRequestedError extends Error {
   constructor() {
@@ -36,6 +37,7 @@ export function parseArgs(argv: string[]): CliOptions {
   let inputDirectory: string | undefined;
   let outputDirectory: string | undefined;
   let maxChars = DEFAULT_MAX_CHARS;
+  let maxInputFileBytes = DEFAULT_MAX_INPUT_FILE_BYTES;
   let includePatterns: string[] = [];
   let excludePatterns: string[] = [];
   let verbose = false;
@@ -62,6 +64,12 @@ export function parseArgs(argv: string[]): CliOptions {
 
     if (arg === "--max-chars") {
       maxChars = parsePositiveInteger(readRequiredOptionValue(argv, i, "--max-chars"), "--max-chars");
+      i += 1;
+      continue;
+    }
+
+    if (arg === "--max-input-file-bytes") {
+      maxInputFileBytes = parsePositiveInteger(readRequiredOptionValue(argv, i, "--max-input-file-bytes"), "--max-input-file-bytes");
       i += 1;
       continue;
     }
@@ -110,6 +118,7 @@ export function parseArgs(argv: string[]): CliOptions {
     inputDirectory,
     outputDirectory,
     maxChars,
+    maxInputFileBytes,
     includePatterns,
     excludePatterns,
     verbose,
@@ -118,8 +127,8 @@ export function parseArgs(argv: string[]): CliOptions {
 
 export function printHelp(): void {
   console.log(`Usage:
-  miku-text-bundle <inputDir> [outputDir] [--max-chars 120000] [--include "glob"] [--exclude "glob"] [--verbose]
-  miku-text-bundle --input-directory <dir> [--output-directory <dir>] [--max-chars 120000]
+  miku-text-bundle <inputDir> [outputDir] [--max-chars 120000] [--max-input-file-bytes 1000000] [--include "glob"] [--exclude "glob"] [--verbose]
+  miku-text-bundle --input-directory <dir> [--output-directory <dir>] [--max-chars 120000] [--max-input-file-bytes 1000000]
 
 Description:
   Collect repository text files and generate split Markdown bundles for
