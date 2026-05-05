@@ -36,8 +36,9 @@
   },
   "scripts": {
     "clean": "node --eval \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\"",
-    "build": "npm run clean && tsc -p tsconfig.json && node --eval \"import { chmodSync } from 'node:fs'; chmodSync('dist/main.js', 0o755);\" && npm test",
-    "pack:check": "npm pack --dry-run",
+    "build": "npm run clean && tsc -p tsconfig.json && node --eval \"import { chmodSync } from 'node:fs'; chmodSync('dist/main.js', 0o755);\" && npm run verify",
+    "pack:check": "npm_config_cache=workplace/.npm-cache npm pack --dry-run",
+    "verify": "npm test && npm run pack:check",
     "start": "node dist/main.js",
     "test": "vitest run"
   },

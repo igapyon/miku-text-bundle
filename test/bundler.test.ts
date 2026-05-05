@@ -107,4 +107,29 @@ describe("createTextBundle", () => {
     expect(firstPart).toContain("やむを得ず分割");
     expect(firstPart.indexOf("やむを得ず分割")).toBeLessThan(firstPart.indexOf("```ts"));
   });
+
+  it("honors explicit include and exclude patterns without bypassing hard exclusions", () => {
+    const root = makeTempRepo();
+    writeFile(join(root, "README.md"), "# README\n");
+    writeFile(join(root, "docs", "extra.md"), "# Extra\n");
+    writeFile(join(root, "docs", "skip.md"), "# Skip\n");
+    writeFile(join(root, ".secret", "extra.md"), "# Secret\n");
+    writeFile(join(root, ".gitignore"), "ignored.md\n");
+    writeFile(join(root, "docs", "ignored.md"), "# Ignored\n");
+
+    const result = createTextBundle({
+      inputDirectory: root,
+      maxChars: 120000,
+      includePatterns: ["docs/**/*.md", ".secret/**/*.md"],
+      excludePatterns: ["docs/skip.md"],
+      verbose: false,
+    }, new Date(2026, 4, 5, 12, 55));
+
+    const index = readFileSync(result.indexPath, "utf8");
+    expect(index).toContain("`README.md`");
+    expect(index).toContain("`docs/extra.md`");
+    expect(index).not.toContain("docs/skip.md");
+    expect(index).not.toContain("docs/ignored.md");
+    expect(index).not.toContain(".secret");
+  });
 });
