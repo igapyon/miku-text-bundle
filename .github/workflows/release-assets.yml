@@ -1,0 +1,76 @@
+name: Release CLI bundle
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag name, such as v0.5.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release-cli-bundle:
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.release.tag_name || github.event.inputs.tag_name, 'v')
+    env:
+      TAG_NAME: ${{ github.event.release.tag_name || github.event.inputs.tag_name }}
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || github.event.inputs.tag_name }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Verify release tag
+        run: |
+          case "$TAG_NAME" in
+            v*) ;;
+            *)
+              echo "Release asset upload only supports tags starting with v: $TAG_NAME" >&2
+              exit 1
+              ;;
+          esac
+
+          package_version="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
+          tag_version="${TAG_NAME#v}"
+
+          if [ "$package_version" != "$tag_version" ]; then
+            echo "Tag version ($tag_version) does not match package.json version ($package_version)." >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and verify
+        run: npm run build
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=moderate
+
+      - name: Prepare release assets
+        run: |
+          version="${TAG_NAME#v}"
+          mkdir -p release-assets
+          cp bundle/miku-text-bundle.mjs "release-assets/miku-text-bundle-${version}.mjs"
+          cp bundle/miku-text-bundle-sources.tgz "release-assets/miku-text-bundle-sources-${version}.tgz"
+
+      - name: Verify CLI bundle asset
+        run: npm run smoke:bundle
+
+      - name: Upload CLI bundle assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG_NAME" release-assets/* --clobber
