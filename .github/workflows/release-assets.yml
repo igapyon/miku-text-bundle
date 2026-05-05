@@ -50,10 +50,13 @@ jobs:
           package_version="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
           tag_version="${TAG_NAME#v}"
 
-          if [ "$package_version" != "$tag_version" ]; then
-            echo "Tag version ($tag_version) does not match package.json version ($package_version)." >&2
-            exit 1
-          fi
+          case "$tag_version" in
+            "$package_version"|"$package_version".*) ;;
+            *)
+              echo "Tag version ($tag_version) must match package.json version ($package_version) or start with ${package_version}." >&2
+              exit 1
+              ;;
+          esac
 
       - name: Install dependencies
         run: npm ci
