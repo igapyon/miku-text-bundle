@@ -1,7 +1,7 @@
 import type { CliOptions } from "./types.js";
 
-const DEFAULT_MAX_CHARS = 120000;
-const DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
+const CLI_DEFAULT_MAX_CHARS = 120000;
+const CLI_DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
 
 export class HelpRequestedError extends Error {
   constructor() {
@@ -36,8 +36,8 @@ function parsePositiveInteger(value: string, optionName: string): number {
 export function parseArgs(argv: string[]): CliOptions {
   let inputDirectory: string | undefined;
   let outputDirectory: string | undefined;
-  let maxChars = DEFAULT_MAX_CHARS;
-  let maxInputFileBytes = DEFAULT_MAX_INPUT_FILE_BYTES;
+  let maxChars = CLI_DEFAULT_MAX_CHARS;
+  let maxInputFileBytes = CLI_DEFAULT_MAX_INPUT_FILE_BYTES;
   let includePatterns: string[] = [];
   let excludePatterns: string[] = [];
   let verbose = false;
