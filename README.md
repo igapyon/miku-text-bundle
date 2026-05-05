@@ -1,6 +1,6 @@
 # miku-text-bundle
 
-`miku-text-bundle` は、指定ディレクトリ以下のテキストファイルを収集し、生成AIに渡しやすいサイズの分割 Markdown バンドルとして出力する CLI ツール案です。
+`miku-text-bundle` は、指定ディレクトリ以下のテキストファイルを収集し、生成AIに渡しやすいサイズの分割 Markdown バンドルとして出力する CLI ツールです。
 
 最初の対象レイヤーは `10 main application` です。初期プロダクト形態は Node.js / TypeScript の CLI メインアプリケーションであり、ソースコード専用の解析ツールではありません。
 
@@ -92,6 +92,26 @@ markdown テキスト形式で出力してください。
 ```text
 miku-text-bundle <inputDir> <outputDir> --max-chars 120000
 miku-text-bundle <inputDir> --max-chars 120000
+```
+
+## 開発
+
+依存関係をインストールします。
+
+```bash
+npm install
+```
+
+ビルドとテストを実行します。
+
+```bash
+npm run build
+```
+
+ローカルで CLI を実行します。
+
+```bash
+node dist/main.js . --max-chars 120000
 ```
 
 ## 初期動作方針
