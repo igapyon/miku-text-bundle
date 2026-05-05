@@ -1,0 +1,23 @@
+.DS_Store
+
+# Node.js / frontend local artifacts
+node_modules/
+.npm-cache/
+dist/
+bundle/
+coverage/
+*.log
+npm-debug.log*
+
+# Java / Maven local artifacts
+target/
+
+# Local VS Code configuration
+.vscode/
+
+# Local work area
+workplace/*
+!workplace/.gitkeep
+
+# Local Codex configuration and deployment area
+.codex/

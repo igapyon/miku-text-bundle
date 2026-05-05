@@ -1,0 +1,161 @@
+import type { CliOptions } from "./types.js";
+
+const CLI_DEFAULT_MAX_CHARS = 120000;
+const CLI_DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
+
+type ParseState = {
+  inputDirectory?: string;
+  outputDirectory?: string;
+  maxChars: number;
+  maxInputFileBytes: number;
+  includePatterns: string[];
+  excludePatterns: string[];
+  verbose: boolean;
+  positional: string[];
+};
+
+export class HelpRequestedError extends Error {
+  constructor() {
+    super("Help requested.");
+    this.name = "HelpRequestedError";
+  }
+}
+
+function readRequiredOptionValue(argv: string[], index: number, optionName: string): string {
+  const value = argv[index + 1];
+  if (!value || value.startsWith("--")) {
+    throw new Error(`Please specify a value for ${optionName}.`);
+  }
+  return value;
+}
+
+function parsePatternList(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function parsePositiveInteger(value: string, optionName: string): number {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error(`${optionName} must be a positive integer.`);
+  }
+  return parsed;
+}
+
+function createParseState(): ParseState {
+  return {
+    maxChars: CLI_DEFAULT_MAX_CHARS,
+    maxInputFileBytes: CLI_DEFAULT_MAX_INPUT_FILE_BYTES,
+    includePatterns: [],
+    excludePatterns: [],
+    verbose: false,
+    positional: [],
+  };
+}
+
+function consumeOption(argv: string[], index: number, state: ParseState): number {
+  const arg = argv[index];
+
+  if (arg === "--help" || arg === "-h") {
+    throw new HelpRequestedError();
+  }
+
+  if (arg === "--input-directory") {
+    state.inputDirectory = readRequiredOptionValue(argv, index, "--input-directory");
+    return index + 1;
+  }
+
+  if (arg === "--output-directory") {
+    state.outputDirectory = readRequiredOptionValue(argv, index, "--output-directory");
+    return index + 1;
+  }
+
+  if (arg === "--max-chars") {
+    state.maxChars = parsePositiveInteger(readRequiredOptionValue(argv, index, "--max-chars"), "--max-chars");
+    return index + 1;
+  }
+
+  if (arg === "--max-input-file-bytes") {
+    state.maxInputFileBytes = parsePositiveInteger(readRequiredOptionValue(argv, index, "--max-input-file-bytes"), "--max-input-file-bytes");
+    return index + 1;
+  }
+
+  if (arg === "--include") {
+    state.includePatterns = parsePatternList(readRequiredOptionValue(argv, index, "--include"));
+    return index + 1;
+  }
+
+  if (arg === "--exclude") {
+    state.excludePatterns = parsePatternList(readRequiredOptionValue(argv, index, "--exclude"));
+    return index + 1;
+  }
+
+  if (arg === "--verbose") {
+    state.verbose = true;
+    return index;
+  }
+
+  if (arg.startsWith("--")) {
+    throw new Error(`Unknown argument: ${arg}`);
+  }
+
+  state.positional.push(arg);
+  return index;
+}
+
+function applyPositionalDirectories(state: ParseState): void {
+  if (!state.inputDirectory) {
+    state.inputDirectory = state.positional[0];
+  }
+
+  if (!state.outputDirectory) {
+    state.outputDirectory = state.positional[1];
+  }
+
+  if (state.positional.length > 2) {
+    throw new Error(`Unexpected positional argument: ${state.positional[2]}`);
+  }
+
+  if (!state.inputDirectory) {
+    throw new Error("Please specify an input directory.");
+  }
+}
+
+export function parseArgs(argv: string[]): CliOptions {
+  const state = createParseState();
+
+  for (let i = 0; i < argv.length; i += 1) {
+    i = consumeOption(argv, i, state);
+  }
+
+  applyPositionalDirectories(state);
+  const inputDirectory = state.inputDirectory;
+
+  if (!inputDirectory) {
+    throw new Error("Please specify an input directory.");
+  }
+
+  return {
+    inputDirectory,
+    outputDirectory: state.outputDirectory,
+    maxChars: state.maxChars,
+    maxInputFileBytes: state.maxInputFileBytes,
+    includePatterns: state.includePatterns,
+    excludePatterns: state.excludePatterns,
+    verbose: state.verbose,
+  };
+}
+
+export function printHelp(): void {
+  console.log(`Usage:
+  miku-text-bundle <inputDir> [outputDir] [--max-chars 120000] [--max-input-file-bytes 1000000] [--include "glob"] [--exclude "glob"] [--verbose]
+  miku-text-bundle --input-directory <dir> [--output-directory <dir>] [--max-chars 120000] [--max-input-file-bytes 1000000]
+
+Description:
+  Collect repository text files and generate split Markdown bundles for
+  generative AI handoff. When outputDir is omitted, outputs are written under
+  workplace/miku-text-bundle/<yyyyMMddHHmm>/.
+`);
+}
