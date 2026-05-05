@@ -2,6 +2,7 @@ export type CliOptions = {
   inputDirectory: string;
   outputDirectory?: string;
   maxChars: number;
+  maxInputFileBytes?: number;
   includePatterns: string[];
   excludePatterns: string[];
   verbose: boolean;

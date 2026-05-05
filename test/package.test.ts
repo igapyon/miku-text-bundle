@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
 describe("package metadata", () => {
@@ -30,7 +31,7 @@ describe("package metadata", () => {
   });
 
   it("limits npm package files to runtime artifacts and docs", () => {
-    expect(packageJson.files).toEqual(["dist/", "README.md", "LICENSE"]);
+    expect(packageJson.files).toEqual(["dist/", "README.md", "docs/gitignore-limitations.md", "LICENSE"]);
   });
 
   it("declares repository metadata", () => {
@@ -48,5 +49,33 @@ describe("package metadata", () => {
 
   it("uses Vitest 4 or later for tests", () => {
     expect(packageJson.devDependencies.vitest).toMatch(/^\^4\./);
+  });
+
+  it("keeps npm dry-run package contents limited to runtime files and docs", () => {
+    const result = spawnSync("npm", ["pack", "--dry-run", "--json"], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        npm_config_cache: "workplace/.npm-cache",
+      },
+    });
+
+    expect(result.status).toBe(0);
+
+    const [packInfo] = JSON.parse(result.stdout) as [{
+      files: { path: string }[];
+    }];
+    const files = packInfo.files.map((file) => file.path).sort();
+
+    expect(files).toContain("README.md");
+    expect(files).toContain("docs/gitignore-limitations.md");
+    expect(files).toContain("LICENSE");
+    expect(files).toContain("package.json");
+    expect(files).toContain("dist/main.js");
+    expect(files).toContain("dist/main.d.ts");
+    expect(files.every((file) => file.startsWith("dist/") || ["README.md", "docs/gitignore-limitations.md", "LICENSE", "package.json"].includes(file))).toBe(true);
+    expect(files.some((file) => file.startsWith("src/"))).toBe(false);
+    expect(files.some((file) => file.startsWith("test/"))).toBe(false);
+    expect(files.some((file) => file.startsWith("workplace/"))).toBe(false);
   });
 });

@@ -10,6 +10,7 @@ const DEFAULT_SOURCE_DIRECTORIES = ["src", "lib", "app", "test", "tests"];
 const DEFAULT_SOURCE_EXTENSIONS = new Set(["ts", "tsx", "js", "jsx", "mjs", "cjs", "java", "cs"]);
 const INDEX_FILE_NAME = "text-bundle-index.md";
 const PROMPT_FILE_NAME = "text-bundle-prompt.md";
+const DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
 
 function formatTimestamp(date: Date): string {
   const pad = (value: number): string => String(value).padStart(2, "0");
@@ -158,9 +159,19 @@ function extractMarkers(relativePath: string, content: string): Marker[] {
 function collectFiles(inputPath: string, options: CliOptions, gitignorePatterns: string[]): { files: CollectedFile[]; skipped: SkippedFile[] } {
   const files: CollectedFile[] = [];
   const skipped: SkippedFile[] = [];
+  const maxInputFileBytes = options.maxInputFileBytes ?? DEFAULT_MAX_INPUT_FILE_BYTES;
 
   for (const filePath of discoverCandidateFiles(inputPath, options, gitignorePatterns)) {
     const relativePath = toPosixPath(relative(inputPath, filePath));
+    const fileStat = statSync(filePath);
+    if (fileStat.size > maxInputFileBytes) {
+      skipped.push({
+        relativePath,
+        reason: `ファイルサイズが ${maxInputFileBytes} bytes の上限を超えたためスキップしました。`,
+      });
+      continue;
+    }
+
     const buffer = readFileSync(filePath);
     const content = decodeUtf8(buffer);
 

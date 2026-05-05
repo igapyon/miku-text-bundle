@@ -88,6 +88,29 @@ describe("createTextBundle", () => {
     expect(index).toContain("UTF-8");
   });
 
+  it("skips explicitly included files that exceed the input file byte limit", () => {
+    const root = makeTempRepo();
+    writeFile(join(root, "README.md"), "# README\n");
+    writeFile(join(root, "docs", "huge.md"), "x".repeat(101));
+
+    const result = createTextBundle({
+      inputDirectory: root,
+      maxChars: 120000,
+      maxInputFileBytes: 100,
+      includePatterns: ["docs/**/*.md"],
+      excludePatterns: [],
+      verbose: false,
+    }, new Date(2026, 4, 5, 12, 56));
+
+    const index = readFileSync(result.indexPath, "utf8");
+    const part = readFileSync(result.partPaths[0]!, "utf8");
+    expect(result.filesCollected).toBe(1);
+    expect(result.filesSkipped).toBe(1);
+    expect(index).toContain("`docs/huge.md`");
+    expect(index).toContain("ファイルサイズ");
+    expect(part).not.toContain("docs/huge.md");
+  });
+
   it("splits oversized files and writes warnings outside code fences", () => {
     const root = makeTempRepo();
     writeFile(join(root, "src", "large.ts"), "line1\nline2\nline3\nline4\n");
@@ -131,5 +154,78 @@ describe("createTextBundle", () => {
     expect(index).not.toContain("docs/skip.md");
     expect(index).not.toContain("docs/ignored.md");
     expect(index).not.toContain(".secret");
+  });
+
+  it("writes the index Markdown sections in a stable order", () => {
+    const root = makeTempRepo();
+    writeFile(join(root, "README.md"), "# README\n");
+    writeFile(join(root, "TODO.md"), "- TODO check index\n");
+    writeFile(join(root, "src", "main.ts"), "const value = 1;\n");
+    writeFile(join(root, "src", "bad.ts"), Buffer.from([0]));
+
+    const result = createTextBundle({
+      inputDirectory: root,
+      maxChars: 120000,
+      includePatterns: [],
+      excludePatterns: [],
+      verbose: false,
+    }, new Date(2026, 4, 5, 12, 57));
+
+    const index = readFileSync(result.indexPath, "utf8");
+    expect(index).toContain("# Text Bundle Index\n");
+    expect(index.indexOf("## Summary")).toBeLessThan(index.indexOf("## Parts"));
+    expect(index.indexOf("## Parts")).toBeLessThan(index.indexOf("## Skipped Files"));
+    expect(index.indexOf("## Skipped Files")).toBeLessThan(index.indexOf("## Warnings"));
+    expect(index.indexOf("## Warnings")).toBeLessThan(index.indexOf("## Markers"));
+    expect(index).toContain("| Part | Chunks | Approx chars | Files |");
+    expect(index).toContain("| File | Reason |");
+    expect(index).toContain("| File | Line | Kind | Text |");
+  });
+
+  it("writes the prompt Markdown reading order and response contract", () => {
+    const root = makeTempRepo();
+    writeFile(join(root, "README.md"), "# README\n");
+    writeFile(join(root, "src", "main.ts"), "const value = 1;\n");
+
+    const result = createTextBundle({
+      inputDirectory: root,
+      maxChars: 120000,
+      includePatterns: [],
+      excludePatterns: [],
+      verbose: false,
+    }, new Date(2026, 4, 5, 12, 58));
+
+    const prompt = readFileSync(result.promptPath, "utf8");
+    expect(prompt).toContain("# Text Bundle Prompt\n");
+    expect(prompt).toContain("## 読み込み順");
+    expect(prompt).toContain("1. `text-bundle-index.md`");
+    expect(prompt).toContain("2. `text-bundle-001.md`");
+    expect(prompt).toContain("`受領しました`");
+    expect(prompt).toContain("`END_OF_TEXT_BUNDLE`");
+    expect(prompt).toContain("## 回答ファイル");
+    expect(prompt).toContain("`text-bundle-response.md`");
+    expect(prompt).toContain("## 出力形式");
+    expect(prompt).toContain("~~~~");
+  });
+
+  it("writes part Markdown with path headings and backtick code fences", () => {
+    const root = makeTempRepo();
+    writeFile(join(root, "src", "main.ts"), "const value = 1;\n");
+
+    const result = createTextBundle({
+      inputDirectory: root,
+      maxChars: 120000,
+      includePatterns: [],
+      excludePatterns: [],
+      verbose: false,
+    }, new Date(2026, 4, 5, 12, 59));
+
+    const part = readFileSync(result.partPaths[0]!, "utf8");
+    expect(part).toContain("# Text Bundle Part 001");
+    expect(part).toContain("### src/main.ts");
+    expect(part).toContain("- Characters: 17");
+    expect(part).toContain("- Source characters: 17");
+    expect(part).toContain("- Source lines: 2");
+    expect(part).toContain("```ts\nconst value = 1;\n\n```");
   });
 });

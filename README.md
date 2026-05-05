@@ -17,6 +17,7 @@
 - 対象入力ディレクトリ。通常はリポジトリルート。
 - 出力ディレクトリ。省略時は日時付きのデフォルト出力先を使う。
 - バンドル Part ごとの最大文字数。
+- 単一入力ファイルの最大読み込み bytes。
 - include / exclude オプション。
 
 ## デフォルト収集範囲
@@ -32,6 +33,8 @@
 
 `.gitignore` 判定は、このツールが必要とする初期範囲の実装です。Git 本体の ignore 仕様と完全互換ではありません。否定パターン、サブディレクトリごとの `.gitignore`、高度な ignore ルールは初期版では対象外です。
 
+詳細は `docs/gitignore-limitations.md` に記録します。
+
 リポジトリルート直下のドットフォルダは、`.gitignore` の内容に関係なく暗黙に収集対象外とします。たとえば `.git/`, `.vscode/`, `.codex/` などはデフォルトでは収集しません。
 
 `.gitignore` で除外されたファイル、およびリポジトリルート直下のドットフォルダ配下のファイルは、include オプションでも収集対象に戻せません。
@@ -39,6 +42,8 @@
 追加の Markdown、設定ファイル、テキスト拡張子は、`.gitignore` と暗黙除外ルールに反しない範囲で、include オプションまたはデフォルト拡張によって後から対象にできる想定です。
 
 初期版の入力文字コードは UTF-8 のみとします。UTF-8 として読めないファイル、およびバイナリと判定したファイルはスキップし、`text-bundle-index.md` に警告として記録します。
+
+単一入力ファイルのデフォルト読み込み上限は 1,000,000 bytes です。デフォルト収集や include オプションでこの上限を超えるファイルが対象になった場合、そのファイルは読み込まずにスキップし、`text-bundle-index.md` に理由を記録します。上限は `--max-input-file-bytes` で変更できます。
 
 ## 出力
 
@@ -74,14 +79,14 @@ workplace/miku-text-bundle/202605051252-2/
 - `text-bundle-*.md` は、Part ごとの収集ファイルを Markdown 見出しとコードフェンスで記録する。
 - 生成AIへの依頼文は、バンドル処理後の回答ファイルを取り出しやすいように、`workplace/miku-text-bundle/<yyyyMMddHHmm>/text-bundle-prompt.md` へ静的な Markdown として出力する。
 - バンドル Part が複数ファイルに分かれる場合でも、生成AIへの依頼文は `text-bundle-prompt.md` 1つにまとめる。この依頼文の中で `text-bundle-index.md` とすべての `text-bundle-*.md` を処理対象として列挙する。
-- `text-bundle-prompt.md` には、Part の読み込み順、回答形式、処理後の回答ファイル名 `text-bundle-response.md` を記録する。
+- `text-bundle-prompt.md` には、複数メッセージで順番に貼り付けるための受領手順、Part の読み込み順、完了合図、回答形式、処理後の回答ファイル名 `text-bundle-response.md` を記録する。
 - 収集元ファイルのパス、文字数、行数など、生成AIに渡す際の確認に必要なメタ情報も Markdown 内に含める。
 
 `text-bundle-*.md` では、各収集ファイルを `### path/to/file.ts` のような見出しで区切ります。ファイル本文は拡張子に応じた通常の backtick code fence で囲みます。外側に tilde fence を使うのは、生成AIへの回答形式指示だけとします。
 
 原則としてファイル途中では分割しません。ただし、1ファイルだけで `--max-chars` を超える場合は例外として分割します。この場合は行単位で、各 chunk が `--max-chars` 以内に近づくように分割します。コードフェンスの外側に「このファイルはサイズ上限を超えたため、やむを得ず分割した」ことを Markdown で明記し、分割番号と元ファイルパスを記録します。`text-bundle-index.md` にも警告として記録します。
 
-生成AIへの依頼文には、定型文として次のような出力形式指示を含めます。
+生成AIへの依頼文には、複数メッセージで順番に貼り付けるための手順と、定型文として次のような出力形式指示を含めます。
 
 ```text
 markdown テキスト形式で出力してください。
@@ -92,8 +97,8 @@ markdown テキスト形式で出力してください。
 ## 初期CLI案
 
 ```text
-miku-text-bundle <inputDir> <outputDir> --max-chars 120000
-miku-text-bundle <inputDir> --max-chars 120000
+miku-text-bundle <inputDir> <outputDir> --max-chars 120000 --max-input-file-bytes 1000000
+miku-text-bundle <inputDir> --max-chars 120000 --max-input-file-bytes 1000000
 ```
 
 ## 開発
