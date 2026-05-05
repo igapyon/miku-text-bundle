@@ -1,17 +1,41 @@
 # TODO
 
-## Project Definition
+## Current Status
 
-- Define the root `.gitignore` matching details used during default file discovery.
-- Define the supported UTF-8 and binary detection details for explicitly included files, including file size limits.
-- Define include / exclude option syntax. Include options must not re-include `.gitignore`-excluded files or repository-root dot directory files.
-- Define the Markdown section structure for `text-bundle-index.md`: summary, parts, skipped files, diagnostics, and extracted markers.
-- Define remaining `text-bundle-*.md` metadata details around the fixed `### path` plus backtick code fence format.
-- Define the section structure for `text-bundle-prompt.md`.
-- Define the exact warning text and chunk metadata for files split because they exceed `--max-chars`.
+- Initial Node.js / TypeScript CLI implementation is in place.
+- `npm run build` currently runs TypeScript build, Vitest tests, and `npm pack --dry-run`.
+- `npm audit --audit-level=moderate` currently reports `0 vulnerabilities`.
+- CLI subprocess smoke test covers `dist/main.js` bundle generation.
+- `README.md` documents the current CLI behavior and `.gitignore` limitation.
 
-## Initial Implementation
+## Next Tasks
 
-- Add more fixture coverage for `.gitignore` edge cases.
-- Add package metadata tests after the repository URL and publication policy are confirmed.
-- Consider adding `npm run pack:check` to regular verification.
+- Add explicit file size limit handling for very large files, especially files pulled in by `--include`.
+- Add tests for the exact `text-bundle-index.md` Markdown section structure:
+  - summary
+  - parts
+  - skipped files
+  - warnings
+  - extracted markers
+- Add tests for the exact `text-bundle-prompt.md` section structure:
+  - reading order
+  - response format
+  - expected `text-bundle-response.md` file name
+- Add tests for `text-bundle-*.md` metadata details around the fixed `### path` plus backtick code fence format.
+- Add package dry-run content assertions if the npm publication contents need to be locked down beyond the current package metadata tests.
+- Decide whether `.gitignore` limitations need a dedicated `docs/` note or whether the README note is enough.
+
+## Verification Commands
+
+```bash
+npm run build
+npm audit --audit-level=moderate
+node dist/main.js . --max-chars 5000
+```
+
+## Implementation Notes
+
+- The code intentionally reads only the repository-root `.gitignore`.
+- Include patterns must not restore `.gitignore`-excluded files or repository-root dot directory files.
+- `workplace/` output is ignored by Git except for `workplace/.gitkeep`.
+- `npm pack --dry-run` uses `workplace/.npm-cache` through the `pack:check` script to avoid local npm cache permission issues.

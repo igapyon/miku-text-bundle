@@ -57,7 +57,8 @@ export function parseGitignore(content: string): string[] {
 export function matchesGitignore(relativePath: string, patterns: string[]): boolean {
   const normalizedPath = normalizePattern(relativePath);
   return patterns.some((pattern) => {
-    const normalizedPattern = normalizePattern(pattern);
+    const rootAnchored = pattern.trim().startsWith("/");
+    const normalizedPattern = normalizePattern(pattern.replace(/^\//, ""));
     const directoryOnly = normalizedPattern.endsWith("/");
     const cleanPattern = normalizedPattern.replace(/\/$/, "");
 
@@ -68,19 +69,39 @@ export function matchesGitignore(relativePath: string, patterns: string[]): bool
     if (!cleanPattern.includes("/")) {
       const segments = normalizedPath.split("/");
       if (directoryOnly) {
+        if (rootAnchored) {
+          return segments[0] === cleanPattern;
+        }
         return segments.slice(0, -1).includes(cleanPattern);
+      }
+      if (cleanPattern.includes("*")) {
+        const regex = globToRegex(cleanPattern);
+        return segments.some((segment) => regex.test(segment));
+      }
+      if (rootAnchored) {
+        return normalizedPath === cleanPattern;
       }
       return segments.includes(cleanPattern) || normalizedPath.endsWith(`/${cleanPattern}`);
     }
 
     if (directoryOnly) {
-      return normalizedPath === cleanPattern || normalizedPath.startsWith(`${cleanPattern}/`);
+      if (rootAnchored) {
+        return normalizedPath === cleanPattern || normalizedPath.startsWith(`${cleanPattern}/`);
+      }
+      return normalizedPath === cleanPattern || normalizedPath.includes(`/${cleanPattern}/`) || normalizedPath.startsWith(`${cleanPattern}/`);
     }
 
     if (cleanPattern.includes("*")) {
-      return globToRegex(cleanPattern).test(normalizedPath);
+      if (rootAnchored) {
+        return globToRegex(cleanPattern).test(normalizedPath);
+      }
+      return globToRegex(cleanPattern).test(normalizedPath) || globToRegex(`**/${cleanPattern}`).test(normalizedPath);
     }
 
-    return normalizedPath === cleanPattern || normalizedPath.startsWith(`${cleanPattern}/`);
+    if (rootAnchored) {
+      return normalizedPath === cleanPattern || normalizedPath.startsWith(`${cleanPattern}/`);
+    }
+
+    return normalizedPath === cleanPattern || normalizedPath.endsWith(`/${cleanPattern}`) || normalizedPath.startsWith(`${cleanPattern}/`);
   });
 }
