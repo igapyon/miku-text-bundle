@@ -2,22 +2,28 @@
 
 ## Current Status
 
-- Initial Node.js / TypeScript CLI implementation is in place.
+- Initial Node.js / TypeScript CLI implementation is functionally in place.
+- The project is in late-stage hardening before the first practical release.
 - `npm run build` currently runs TypeScript build, Vitest tests, and `npm pack --dry-run`.
 - `npm audit --audit-level=moderate` currently reports `0 vulnerabilities`.
 - CLI subprocess smoke test covers `dist/main.js` bundle generation.
 - `README.md` documents the current CLI behavior and `.gitignore` limitation.
-- Large input files over `--max-input-file-bytes` are skipped before UTF-8 decoding and recorded in `text-bundle-index.md`.
+- Large input files over `--max-input-file-bytes` are skipped before UTF-8 decoding and recorded in `text-bundle-000-index.md`.
 - Tests cover the stable Markdown section structure for index, prompt, and part files.
 - CLI subprocess tests cover successful bundle generation, `--max-input-file-bytes`, and failure paths for invalid input directory and unknown options.
 - Package dry-run tests assert that npm publication contents are limited to runtime files and docs.
 - `.gitignore` matcher limitations are documented in `docs/gitignore-limitations.md`.
-- Golden output tests cover representative `text-bundle-index.md`, `text-bundle-prompt.md`, and `text-bundle-*.md` Markdown.
-- `text-bundle-prompt.md` supports a generic multi-message paste workflow with `受領しました` acknowledgements and `END_OF_TEXT_BUNDLE`.
+- Golden output tests cover representative `text-bundle-000-index.md`, `text-bundle-000-prompt.md`, and `text-bundle-*.md` Markdown.
+- `text-bundle-000-prompt.md` supports a generic multi-message paste workflow with `受領しました` acknowledgements and `END_OF_TEXT_BUNDLE`.
 
 ## Next Tasks
 
-- Gather initial CLI usage feedback and decide whether any output wording or default limits need adjustment.
+- Run final release-readiness verification on a clean working tree.
+- Review generated `text-bundle-000-index.md`, `text-bundle-000-prompt.md`, and `text-bundle-*.md` from real repository input.
+- Decide whether any output wording, prompt wording, default limits, or package metadata need adjustment before the first release.
+- Keep `TODO.md` itself in the default bundle input. Marker extraction ignores filename references such as `TODO.md`.
+- Confirm the npm package dry-run contents are limited to intended runtime files and docs.
+- After final verification, decide the first release tag and publication timing.
 
 ## Verification Commands
 
@@ -26,6 +32,8 @@ npm run build
 npm audit --audit-level=moderate
 node dist/main.js . --max-chars 5000
 ```
+
+Use the generated `workplace/miku-text-bundle/<yyyyMMddHHmm>/` output as the human review artifact for the final check.
 
 ## Implementation Notes
 

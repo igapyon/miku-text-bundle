@@ -140,7 +140,7 @@ export function buildPromptMarkdown(partFileNames: string[]): string {
     "",
     "## 読み込み順",
     "",
-    "1. `text-bundle-index.md`",
+    "1. `text-bundle-000-index.md`",
     ...partFileNames.map((fileName, index) => `${index + 2}. \`${fileName}\``),
     `${partFileNames.length + 2}. \`END_OF_TEXT_BUNDLE\``,
     "",

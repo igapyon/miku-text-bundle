@@ -41,9 +41,9 @@
 
 追加の Markdown、設定ファイル、テキスト拡張子は、`.gitignore` と暗黙除外ルールに反しない範囲で、include オプションまたはデフォルト拡張によって後から対象にできる想定です。
 
-初期版の入力文字コードは UTF-8 のみとします。UTF-8 として読めないファイル、およびバイナリと判定したファイルはスキップし、`text-bundle-index.md` に警告として記録します。
+初期版の入力文字コードは UTF-8 のみとします。UTF-8 として読めないファイル、およびバイナリと判定したファイルはスキップし、`text-bundle-000-index.md` に警告として記録します。
 
-単一入力ファイルのデフォルト読み込み上限は 1,000,000 bytes です。デフォルト収集や include オプションでこの上限を超えるファイルが対象になった場合、そのファイルは読み込まずにスキップし、`text-bundle-index.md` に理由を記録します。上限は `--max-input-file-bytes` で変更できます。
+単一入力ファイルのデフォルト読み込み上限は 1,000,000 bytes です。デフォルト収集や include オプションでこの上限を超えるファイルが対象になった場合、そのファイルは読み込まずにスキップし、`text-bundle-000-index.md` に理由を記録します。上限は `--max-input-file-bytes` で変更できます。
 
 ## 出力
 
@@ -69,22 +69,22 @@ workplace/miku-text-bundle/202605051252-1/
 workplace/miku-text-bundle/202605051252-2/
 ```
 
-- `text-bundle-index.md`
+- `text-bundle-000-index.md`
 - `text-bundle-001.md`, `text-bundle-002.md` 以降の分割 Markdown ファイル。
-- `text-bundle-prompt.md`
+- `text-bundle-000-prompt.md`
 
 出力ファイルはすべて Markdown 形式とします。
 
-- `text-bundle-index.md` は、出力概要、各 Part に含まれるファイル一覧、スキップされたファイル、診断情報、抽出した `TODO` / `FIXME` / `XXX` マーカーを Markdown として記録する。
+- `text-bundle-000-index.md` は、出力概要、各 Part に含まれるファイル一覧、スキップされたファイル、診断情報、抽出した `TODO` / `FIXME` / `XXX` マーカーを Markdown として記録する。
 - `text-bundle-*.md` は、Part ごとの収集ファイルを Markdown 見出しとコードフェンスで記録する。
-- 生成AIへの依頼文は、バンドル処理後の回答ファイルを取り出しやすいように、`workplace/miku-text-bundle/<yyyyMMddHHmm>/text-bundle-prompt.md` へ静的な Markdown として出力する。
-- バンドル Part が複数ファイルに分かれる場合でも、生成AIへの依頼文は `text-bundle-prompt.md` 1つにまとめる。この依頼文の中で `text-bundle-index.md` とすべての `text-bundle-*.md` を処理対象として列挙する。
-- `text-bundle-prompt.md` には、複数メッセージで順番に貼り付けるための受領手順、Part の読み込み順、完了合図、回答形式、処理後の回答ファイル名 `text-bundle-response.md` を記録する。
+- 生成AIへの依頼文は、バンドル処理後の回答ファイルを取り出しやすいように、`workplace/miku-text-bundle/<yyyyMMddHHmm>/text-bundle-000-prompt.md` へ静的な Markdown として出力する。
+- バンドル Part が複数ファイルに分かれる場合でも、生成AIへの依頼文は `text-bundle-000-prompt.md` 1つにまとめる。この依頼文の中で `text-bundle-000-index.md` とすべての `text-bundle-*.md` を処理対象として列挙する。
+- `text-bundle-000-prompt.md` には、複数メッセージで順番に貼り付けるための受領手順、Part の読み込み順、完了合図、回答形式、処理後の回答ファイル名 `text-bundle-response.md` を記録する。
 - 収集元ファイルのパス、文字数、行数など、生成AIに渡す際の確認に必要なメタ情報も Markdown 内に含める。
 
 `text-bundle-*.md` では、各収集ファイルを `### path/to/file.ts` のような見出しで区切ります。ファイル本文は拡張子に応じた通常の backtick code fence で囲みます。外側に tilde fence を使うのは、生成AIへの回答形式指示だけとします。
 
-原則としてファイル途中では分割しません。ただし、1ファイルだけで `--max-chars` を超える場合は例外として分割します。この場合は行単位で、各 chunk が `--max-chars` 以内に近づくように分割します。コードフェンスの外側に「このファイルはサイズ上限を超えたため、やむを得ず分割した」ことを Markdown で明記し、分割番号と元ファイルパスを記録します。`text-bundle-index.md` にも警告として記録します。
+原則としてファイル途中では分割しません。ただし、1ファイルだけで `--max-chars` を超える場合は例外として分割します。この場合は行単位で、各 chunk が `--max-chars` 以内に近づくように分割します。コードフェンスの外側に「このファイルはサイズ上限を超えたため、やむを得ず分割した」ことを Markdown で明記し、分割番号と元ファイルパスを記録します。`text-bundle-000-index.md` にも警告として記録します。
 
 生成AIへの依頼文には、複数メッセージで順番に貼り付けるための手順と、定型文として次のような出力形式指示を含めます。
 
@@ -134,7 +134,7 @@ node dist/main.js . --max-chars 120000
 - 初期実装では原則としてファイル途中の分割は行わない。
 - ただし、単一ファイルが `--max-chars` を超える場合は、Markdown のコードフェンス外側に分割注記を置いたうえで例外的に分割する。
 - `TODO`, `FIXME`, `XXX` マーカーを抽出する。
-- `text-bundle-index.md` から各 Part に含まれるファイルを一覧できるようにする。
+- `text-bundle-000-index.md` から各 Part に含まれるファイルを一覧できるようにする。
 - GitHub リポジトリ操作は人間が担当する。
 
 ## リポジトリ構成
@@ -142,7 +142,7 @@ node dist/main.js . --max-chars 120000
 - `docs/`: miku-soft 設計文書と今後のプロジェクト文書。
 - `workplace/`: 参照リポジトリ、展開したアーカイブ、生成ファイル、検証成果物などのローカル専用作業領域。
 - `LICENSE`: Apache License 2.0。
-- `TODO.md`: プロジェクト作成に関する具体的な後続作業。
+- `TODO.md`: 初期リリース前の確認事項と具体的な後続作業。
 
 ## リポジトリ運用ルール
 
@@ -152,7 +152,7 @@ node dist/main.js . --max-chars 120000
 
 `.codex/` 配下のローカル Codex 設定および配置ファイルは Git 管理対象外にします。
 
-Node.js、フロントエンド、Java、Maven の生成物は Git 管理対象外にします。初期実装は、参照プロジェクトの形を選んだ後に Node.js / TypeScript CLI として開始する想定です。
+Node.js、フロントエンド、Java、Maven の生成物は Git 管理対象外にします。現在の初期実装は Node.js / TypeScript CLI として進めています。
 
 ## miku-soft 文書
 

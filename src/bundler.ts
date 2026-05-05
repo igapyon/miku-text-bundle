@@ -8,8 +8,8 @@ import type { BundleChunk, BundlePart, BundleResult, CliOptions, CollectedFile, 
 
 const DEFAULT_SOURCE_DIRECTORIES = ["src", "lib", "app", "test", "tests"];
 const DEFAULT_SOURCE_EXTENSIONS = new Set(["ts", "tsx", "js", "jsx", "mjs", "cjs", "java", "cs"]);
-const INDEX_FILE_NAME = "text-bundle-index.md";
-const PROMPT_FILE_NAME = "text-bundle-prompt.md";
+const INDEX_FILE_NAME = "text-bundle-000-index.md";
+const PROMPT_FILE_NAME = "text-bundle-000-prompt.md";
 const DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
 
 function formatTimestamp(date: Date): string {
@@ -142,7 +142,7 @@ function decodeUtf8(buffer: Buffer): string | undefined {
 
 function extractMarkers(relativePath: string, content: string): Marker[] {
   return content.split(/\r?\n/).flatMap((lineText, index) => {
-    const match = lineText.match(/\b(TODO|FIXME|XXX)\b(.*)/);
+    const match = lineText.match(/\b(TODO|FIXME|XXX)\b(?!\.)(.*)/);
     if (!match) {
       return [];
     }

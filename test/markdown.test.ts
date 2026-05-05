@@ -117,7 +117,7 @@ const value = 1;
 
 ## 読み込み順
 
-1. \`text-bundle-index.md\`
+1. \`text-bundle-000-index.md\`
 2. \`text-bundle-001.md\`
 3. \`text-bundle-002.md\`
 4. \`END_OF_TEXT_BUNDLE\`
