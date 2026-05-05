@@ -41,6 +41,18 @@ describe("Markdown golden outputs", () => {
     text: "- TODO check | escape",
   }];
 
+  const indexParams = {
+    inputDirectory: "/repo",
+    outputDirectory: "/repo/workplace/miku-text-bundle/202605051200",
+    parts: [part],
+    collectedFiles,
+    skippedFiles,
+    markers,
+    warnings: ["`src/large.ts` は --max-chars を超えたため 2 個に分割しました。"],
+  };
+
+  const promptPartFileNames = ["text-bundle-001.md", "text-bundle-002.md"];
+
   it("builds stable part Markdown", () => {
     expect(buildPartMarkdown(part)).toBe(`# Text Bundle Part 001
 
@@ -63,15 +75,7 @@ const value = 1;
   });
 
   it("builds stable index Markdown", () => {
-    expect(buildIndexMarkdown({
-      inputDirectory: "/repo",
-      outputDirectory: "/repo/workplace/miku-text-bundle/202605051200",
-      parts: [part],
-      collectedFiles,
-      skippedFiles,
-      markers,
-      warnings: ["`src/large.ts` は --max-chars を超えたため 2 個に分割しました。"],
-    })).toBe(`# Text Bundle Index
+    expect(buildIndexMarkdown(indexParams)).toBe(`# Text Bundle Index
 
 ## Summary
 
@@ -107,7 +111,7 @@ const value = 1;
   });
 
   it("builds stable prompt Markdown", () => {
-    expect(buildPromptMarkdown(["text-bundle-001.md", "text-bundle-002.md"])).toBe(`# Text Bundle Prompt
+    expect(buildPromptMarkdown(promptPartFileNames)).toBe(`# Text Bundle Prompt
 
 これから Markdown バンドルを複数のメッセージに分けて順番に送ります。
 

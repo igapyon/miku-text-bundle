@@ -3,6 +3,17 @@ import type { CliOptions } from "./types.js";
 const CLI_DEFAULT_MAX_CHARS = 120000;
 const CLI_DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
 
+type ParseState = {
+  inputDirectory?: string;
+  outputDirectory?: string;
+  maxChars: number;
+  maxInputFileBytes: number;
+  includePatterns: string[];
+  excludePatterns: string[];
+  verbose: boolean;
+  positional: string[];
+};
+
 export class HelpRequestedError extends Error {
   constructor() {
     super("Help requested.");
@@ -33,82 +44,94 @@ function parsePositiveInteger(value: string, optionName: string): number {
   return parsed;
 }
 
+function createParseState(): ParseState {
+  return {
+    maxChars: CLI_DEFAULT_MAX_CHARS,
+    maxInputFileBytes: CLI_DEFAULT_MAX_INPUT_FILE_BYTES,
+    includePatterns: [],
+    excludePatterns: [],
+    verbose: false,
+    positional: [],
+  };
+}
+
+function consumeOption(argv: string[], index: number, state: ParseState): number {
+  const arg = argv[index];
+
+  if (arg === "--help" || arg === "-h") {
+    throw new HelpRequestedError();
+  }
+
+  if (arg === "--input-directory") {
+    state.inputDirectory = readRequiredOptionValue(argv, index, "--input-directory");
+    return index + 1;
+  }
+
+  if (arg === "--output-directory") {
+    state.outputDirectory = readRequiredOptionValue(argv, index, "--output-directory");
+    return index + 1;
+  }
+
+  if (arg === "--max-chars") {
+    state.maxChars = parsePositiveInteger(readRequiredOptionValue(argv, index, "--max-chars"), "--max-chars");
+    return index + 1;
+  }
+
+  if (arg === "--max-input-file-bytes") {
+    state.maxInputFileBytes = parsePositiveInteger(readRequiredOptionValue(argv, index, "--max-input-file-bytes"), "--max-input-file-bytes");
+    return index + 1;
+  }
+
+  if (arg === "--include") {
+    state.includePatterns = parsePatternList(readRequiredOptionValue(argv, index, "--include"));
+    return index + 1;
+  }
+
+  if (arg === "--exclude") {
+    state.excludePatterns = parsePatternList(readRequiredOptionValue(argv, index, "--exclude"));
+    return index + 1;
+  }
+
+  if (arg === "--verbose") {
+    state.verbose = true;
+    return index;
+  }
+
+  if (arg.startsWith("--")) {
+    throw new Error(`Unknown argument: ${arg}`);
+  }
+
+  state.positional.push(arg);
+  return index;
+}
+
+function applyPositionalDirectories(state: ParseState): void {
+  if (!state.inputDirectory) {
+    state.inputDirectory = state.positional[0];
+  }
+
+  if (!state.outputDirectory) {
+    state.outputDirectory = state.positional[1];
+  }
+
+  if (state.positional.length > 2) {
+    throw new Error(`Unexpected positional argument: ${state.positional[2]}`);
+  }
+
+  if (!state.inputDirectory) {
+    throw new Error("Please specify an input directory.");
+  }
+}
+
 export function parseArgs(argv: string[]): CliOptions {
-  let inputDirectory: string | undefined;
-  let outputDirectory: string | undefined;
-  let maxChars = CLI_DEFAULT_MAX_CHARS;
-  let maxInputFileBytes = CLI_DEFAULT_MAX_INPUT_FILE_BYTES;
-  let includePatterns: string[] = [];
-  let excludePatterns: string[] = [];
-  let verbose = false;
-  const positional: string[] = [];
+  const state = createParseState();
 
   for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-
-    if (arg === "--help" || arg === "-h") {
-      throw new HelpRequestedError();
-    }
-
-    if (arg === "--input-directory") {
-      inputDirectory = readRequiredOptionValue(argv, i, "--input-directory");
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--output-directory") {
-      outputDirectory = readRequiredOptionValue(argv, i, "--output-directory");
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--max-chars") {
-      maxChars = parsePositiveInteger(readRequiredOptionValue(argv, i, "--max-chars"), "--max-chars");
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--max-input-file-bytes") {
-      maxInputFileBytes = parsePositiveInteger(readRequiredOptionValue(argv, i, "--max-input-file-bytes"), "--max-input-file-bytes");
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--include") {
-      includePatterns = parsePatternList(readRequiredOptionValue(argv, i, "--include"));
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--exclude") {
-      excludePatterns = parsePatternList(readRequiredOptionValue(argv, i, "--exclude"));
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--verbose") {
-      verbose = true;
-      continue;
-    }
-
-    if (arg.startsWith("--")) {
-      throw new Error(`Unknown argument: ${arg}`);
-    }
-
-    positional.push(arg);
+    i = consumeOption(argv, i, state);
   }
 
-  if (!inputDirectory) {
-    inputDirectory = positional[0];
-  }
-
-  if (!outputDirectory) {
-    outputDirectory = positional[1];
-  }
-
-  if (positional.length > 2) {
-    throw new Error(`Unexpected positional argument: ${positional[2]}`);
-  }
+  applyPositionalDirectories(state);
+  const inputDirectory = state.inputDirectory;
 
   if (!inputDirectory) {
     throw new Error("Please specify an input directory.");
@@ -116,12 +139,12 @@ export function parseArgs(argv: string[]): CliOptions {
 
   return {
     inputDirectory,
-    outputDirectory,
-    maxChars,
-    maxInputFileBytes,
-    includePatterns,
-    excludePatterns,
-    verbose,
+    outputDirectory: state.outputDirectory,
+    maxChars: state.maxChars,
+    maxInputFileBytes: state.maxInputFileBytes,
+    includePatterns: state.includePatterns,
+    excludePatterns: state.excludePatterns,
+    verbose: state.verbose,
   };
 }
 
