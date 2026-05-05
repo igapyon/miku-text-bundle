@@ -23,21 +23,100 @@ function languageFor(extension: string): string {
   return EXTENSION_LANGUAGES[extension] ?? "";
 }
 
+function markdown(lines: string[]): string {
+  return `${lines.join("\n").replace(/\n{3,}/g, "\n\n")}\n`;
+}
+
+function table(headers: string[], alignments: string[], rows: string[][]): string[] {
+  return [
+    `| ${headers.join(" | ")} |`,
+    `| ${alignments.join(" | ")} |`,
+    ...rows.map((row) => `| ${row.join(" | ")} |`),
+    "",
+  ];
+}
+
+function code(value: string): string {
+  return `\`${value}\``;
+}
+
+function warningList(warnings: string[]): string[] {
+  if (warnings.length === 0) {
+    return ["- なし", ""];
+  }
+
+  return warnings.map((warning) => `- ${warning}`).concat("");
+}
+
 function markerTable(markers: Marker[]): string {
   if (markers.length === 0) {
     return "- なし\n";
   }
 
-  return [
-    "| File | Line | Kind | Text |",
-    "| --- | ---: | --- | --- |",
-    ...markers.map((marker) => `| \`${marker.relativePath}\` | ${marker.line} | ${marker.kind} | ${escapeTable(marker.text)} |`),
-    "",
-  ].join("\n");
+  return table(
+    ["File", "Line", "Kind", "Text"],
+    ["---", "---:", "---", "---"],
+    markers.map((marker) => [code(marker.relativePath), String(marker.line), marker.kind, escapeTable(marker.text)]),
+  ).join("\n");
 }
 
 function escapeTable(value: string): string {
   return value.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+}
+
+function buildChunkMarkdown(chunk: BundlePart["chunks"][number]): string[] {
+  const lines = [
+    `### ${chunk.relativePath}`,
+    "",
+    `- Characters: ${chunk.content.length}`,
+    `- Source characters: ${chunk.originalCharCount}`,
+    `- Source lines: ${chunk.originalLineCount}`,
+  ];
+
+  if (chunk.splitReason) {
+    lines.push(`- Warning: ${chunk.splitReason}`);
+    lines.push(`- Split: ${chunk.chunkIndex} / ${chunk.chunkCount}`);
+  }
+
+  lines.push("");
+
+  if (chunk.splitReason) {
+    lines.push(`このファイルはサイズ上限を超えたため、やむを得ず分割しました。元ファイル: \`${chunk.relativePath}\`。分割: ${chunk.chunkIndex} / ${chunk.chunkCount}。`);
+    lines.push("");
+  }
+
+  const fence = fenceFor(chunk.content);
+  const language = languageFor(chunk.extension);
+  lines.push(`${fence}${language}`);
+  lines.push(chunk.content);
+  lines.push(fence);
+  lines.push("");
+  return lines;
+}
+
+function partsTable(parts: BundlePart[]): string[] {
+  return table(
+    ["Part", "Chunks", "Approx chars", "Files"],
+    ["---", "---:", "---:", "---"],
+    parts.map((part) => [
+      code(part.fileName),
+      String(part.chunks.length),
+      String(part.charCount),
+      part.chunks.map((chunk) => code(chunk.relativePath)).join("<br>"),
+    ]),
+  );
+}
+
+function skippedFilesTable(skippedFiles: SkippedFile[]): string[] {
+  if (skippedFiles.length === 0) {
+    return ["- なし", ""];
+  }
+
+  return table(
+    ["File", "Reason"],
+    ["---", "---"],
+    skippedFiles.map((file) => [code(file.relativePath), escapeTable(file.reason)]),
+  );
 }
 
 export function buildPartMarkdown(part: BundlePart): string {
@@ -51,33 +130,10 @@ export function buildPartMarkdown(part: BundlePart): string {
   ];
 
   for (const chunk of part.chunks) {
-    lines.push(`### ${chunk.relativePath}`);
-    lines.push("");
-    lines.push(`- Characters: ${chunk.content.length}`);
-    lines.push(`- Source characters: ${chunk.originalCharCount}`);
-    lines.push(`- Source lines: ${chunk.originalLineCount}`);
-
-    if (chunk.splitReason) {
-      lines.push(`- Warning: ${chunk.splitReason}`);
-      lines.push(`- Split: ${chunk.chunkIndex} / ${chunk.chunkCount}`);
-    }
-
-    lines.push("");
-
-    if (chunk.splitReason) {
-      lines.push(`このファイルはサイズ上限を超えたため、やむを得ず分割しました。元ファイル: \`${chunk.relativePath}\`。分割: ${chunk.chunkIndex} / ${chunk.chunkCount}。`);
-      lines.push("");
-    }
-
-    const fence = fenceFor(chunk.content);
-    const language = languageFor(chunk.extension);
-    lines.push(`${fence}${language}`);
-    lines.push(chunk.content);
-    lines.push(fence);
-    lines.push("");
+    lines.push(...buildChunkMarkdown(chunk));
   }
 
-  return `${lines.join("\n").replace(/\n{3,}/g, "\n\n")}\n`;
+  return markdown(lines);
 }
 
 export function buildIndexMarkdown(params: {
@@ -103,29 +159,19 @@ export function buildIndexMarkdown(params: {
     "",
     "## Parts",
     "",
-    "| Part | Chunks | Approx chars | Files |",
-    "| --- | ---: | ---: | --- |",
-    ...parts.map((part) => `| \`${part.fileName}\` | ${part.chunks.length} | ${part.charCount} | ${part.chunks.map((chunk) => `\`${chunk.relativePath}\``).join("<br>")} |`),
-    "",
+    ...partsTable(parts),
     "## Skipped Files",
     "",
-    ...(skippedFiles.length === 0
-      ? ["- なし", ""]
-      : [
-          "| File | Reason |",
-          "| --- | --- |",
-          ...skippedFiles.map((file) => `| \`${file.relativePath}\` | ${escapeTable(file.reason)} |`),
-          "",
-        ]),
+    ...skippedFilesTable(skippedFiles),
     "## Warnings",
     "",
-    ...(warnings.length === 0 ? ["- なし", ""] : warnings.map((warning) => `- ${warning}`).concat("")),
+    ...warningList(warnings),
     "## Markers",
     "",
     markerTable(markers),
   ];
 
-  return `${lines.join("\n").replace(/\n{3,}/g, "\n\n")}\n`;
+  return markdown(lines);
 }
 
 export function buildPromptMarkdown(partFileNames: string[]): string {

@@ -6,8 +6,40 @@ import { matchesAnyPattern, matchesGitignore, parseGitignore } from "./match.js"
 import { getExtension, toPosixPath } from "./path-utils.js";
 import type { BundleChunk, BundlePart, BundleResult, CliOptions, CollectedFile, Marker, SkippedFile } from "./types.js";
 
+type CollectedFilesResult = {
+  files: CollectedFile[];
+  skipped: SkippedFile[];
+};
+
+type BundleChunksResult = {
+  chunks: BundleChunk[];
+  warnings: string[];
+};
+
+type BundlePartsResult = {
+  parts: BundlePart[];
+  warnings: string[];
+};
+
+type BundleMarkdownWriteParams = {
+  outputDirectory: string;
+  inputDirectory: string;
+  parts: BundlePart[];
+  collectedFiles: CollectedFile[];
+  skippedFiles: SkippedFile[];
+  markers: Marker[];
+  warnings: string[];
+};
+
+type BundleMarkdownPaths = {
+  indexPath: string;
+  promptPath: string;
+  partPaths: string[];
+};
+
 const DEFAULT_SOURCE_DIRECTORIES = ["src", "lib", "app", "test", "tests"];
 const DEFAULT_SOURCE_EXTENSIONS = new Set(["ts", "tsx", "js", "jsx", "mjs", "cjs", "java", "cs"]);
+const DEFAULT_ROOT_FILES = ["README.md", "TODO.md"];
 const INDEX_FILE_NAME = "text-bundle-000-index.md";
 const PROMPT_FILE_NAME = "text-bundle-000-prompt.md";
 const DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
@@ -46,6 +78,18 @@ function isRootDotDirectory(relativePath: string): boolean {
   return firstSegment.startsWith(".") && firstSegment.length > 1;
 }
 
+function relativeInputPath(inputPath: string, filePath: string): string {
+  return toPosixPath(relative(inputPath, filePath));
+}
+
+function isDefaultSourceFile(filePath: string): boolean {
+  return DEFAULT_SOURCE_EXTENSIONS.has(getExtension(filePath));
+}
+
+function isHardExcluded(relativePath: string, gitignorePatterns: string[]): boolean {
+  return isRootDotDirectory(relativePath) || matchesGitignore(relativePath, gitignorePatterns);
+}
+
 function readRootGitignore(inputPath: string): string[] {
   const gitignorePath = join(inputPath, ".gitignore");
   if (!statSync(gitignorePath, { throwIfNoEntry: false })?.isFile()) {
@@ -60,7 +104,7 @@ function listFilesRecursively(rootPath: string, startPath: string): string[] {
 
   for (const entry of entries) {
     const fullPath = join(startPath, entry.name);
-    const relativePath = toPosixPath(relative(rootPath, fullPath));
+    const relativePath = relativeInputPath(rootPath, fullPath);
 
     if (isRootDotDirectory(relativePath)) {
       continue;
@@ -79,16 +123,16 @@ function listFilesRecursively(rootPath: string, startPath: string): string[] {
   return files;
 }
 
-function discoverCandidateFiles(inputPath: string, options: CliOptions, gitignorePatterns: string[]): string[] {
-  const candidates = new Set<string>();
-
-  for (const rootFile of ["README.md", "TODO.md"]) {
+function addRootFiles(candidates: Set<string>, inputPath: string): void {
+  for (const rootFile of DEFAULT_ROOT_FILES) {
     const fullPath = join(inputPath, rootFile);
     if (statSync(fullPath, { throwIfNoEntry: false })?.isFile()) {
       candidates.add(fullPath);
     }
   }
+}
 
+function addDefaultSourceFiles(candidates: Set<string>, inputPath: string): void {
   for (const sourceDir of DEFAULT_SOURCE_DIRECTORIES) {
     const fullPath = join(inputPath, sourceDir);
     if (!statSync(fullPath, { throwIfNoEntry: false })?.isDirectory()) {
@@ -96,36 +140,40 @@ function discoverCandidateFiles(inputPath: string, options: CliOptions, gitignor
     }
 
     for (const filePath of listFilesRecursively(inputPath, fullPath)) {
-      if (DEFAULT_SOURCE_EXTENSIONS.has(getExtension(filePath))) {
+      if (isDefaultSourceFile(filePath)) {
         candidates.add(filePath);
       }
     }
+  }
+}
+
+function addIncludedFiles(candidates: Set<string>, inputPath: string, includePatterns: string[]): void {
+  if (includePatterns.length === 0) {
+    return;
   }
 
-  if (options.includePatterns.length > 0) {
-    for (const filePath of listFilesRecursively(inputPath, inputPath)) {
-      const relativePath = toPosixPath(relative(inputPath, filePath));
-      if (matchesAnyPattern(relativePath, options.includePatterns)) {
-        candidates.add(filePath);
-      }
+  for (const filePath of listFilesRecursively(inputPath, inputPath)) {
+    if (matchesAnyPattern(relativeInputPath(inputPath, filePath), includePatterns)) {
+      candidates.add(filePath);
     }
   }
+}
+
+function shouldCollectCandidate(inputPath: string, filePath: string, options: CliOptions, gitignorePatterns: string[]): boolean {
+  const relativePath = relativeInputPath(inputPath, filePath);
+  return !isHardExcluded(relativePath, gitignorePatterns) && !matchesAnyPattern(relativePath, options.excludePatterns);
+}
+
+function discoverCandidateFiles(inputPath: string, options: CliOptions, gitignorePatterns: string[]): string[] {
+  const candidates = new Set<string>();
+
+  addRootFiles(candidates, inputPath);
+  addDefaultSourceFiles(candidates, inputPath);
+  addIncludedFiles(candidates, inputPath, options.includePatterns);
 
   return [...candidates]
-    .filter((filePath) => {
-      const relativePath = toPosixPath(relative(inputPath, filePath));
-      if (isRootDotDirectory(relativePath)) {
-        return false;
-      }
-      if (matchesGitignore(relativePath, gitignorePatterns)) {
-        return false;
-      }
-      if (matchesAnyPattern(relativePath, options.excludePatterns)) {
-        return false;
-      }
-      return true;
-    })
-    .sort((a, b) => toPosixPath(relative(inputPath, a)).localeCompare(toPosixPath(relative(inputPath, b)), "ja"));
+    .filter((filePath) => shouldCollectCandidate(inputPath, filePath, options, gitignorePatterns))
+    .sort((a, b) => relativeInputPath(inputPath, a).localeCompare(relativeInputPath(inputPath, b), "ja"));
 }
 
 function decodeUtf8(buffer: Buffer): string | undefined {
@@ -156,19 +204,42 @@ function extractMarkers(relativePath: string, content: string): Marker[] {
   });
 }
 
-function collectFiles(inputPath: string, options: CliOptions, gitignorePatterns: string[]): { files: CollectedFile[]; skipped: SkippedFile[] } {
+function skippedForOversizedFile(relativePath: string, maxInputFileBytes: number): SkippedFile {
+  return {
+    relativePath,
+    reason: `ファイルサイズが ${maxInputFileBytes} bytes の上限を超えたためスキップしました。`,
+  };
+}
+
+function skippedForUnreadableFile(relativePath: string): SkippedFile {
+  return {
+    relativePath,
+    reason: "UTF-8 として読めない、またはバイナリと判定したためスキップしました。",
+  };
+}
+
+function createCollectedFile(filePath: string, relativePath: string, content: string): CollectedFile {
+  return {
+    absolutePath: filePath,
+    relativePath,
+    extension: getExtension(filePath),
+    content,
+    charCount: content.length,
+    lineCount: content.length === 0 ? 0 : content.split(/\r?\n/).length,
+    markers: extractMarkers(relativePath, content),
+  };
+}
+
+function collectFiles(inputPath: string, options: CliOptions, gitignorePatterns: string[]): CollectedFilesResult {
   const files: CollectedFile[] = [];
   const skipped: SkippedFile[] = [];
   const maxInputFileBytes = options.maxInputFileBytes ?? DEFAULT_MAX_INPUT_FILE_BYTES;
 
   for (const filePath of discoverCandidateFiles(inputPath, options, gitignorePatterns)) {
-    const relativePath = toPosixPath(relative(inputPath, filePath));
+    const relativePath = relativeInputPath(inputPath, filePath);
     const fileStat = statSync(filePath);
     if (fileStat.size > maxInputFileBytes) {
-      skipped.push({
-        relativePath,
-        reason: `ファイルサイズが ${maxInputFileBytes} bytes の上限を超えたためスキップしました。`,
-      });
+      skipped.push(skippedForOversizedFile(relativePath, maxInputFileBytes));
       continue;
     }
 
@@ -176,41 +247,33 @@ function collectFiles(inputPath: string, options: CliOptions, gitignorePatterns:
     const content = decodeUtf8(buffer);
 
     if (content === undefined) {
-      skipped.push({ relativePath, reason: "UTF-8 として読めない、またはバイナリと判定したためスキップしました。" });
+      skipped.push(skippedForUnreadableFile(relativePath));
       continue;
     }
 
-    files.push({
-      absolutePath: filePath,
-      relativePath,
-      extension: getExtension(filePath),
-      content,
-      charCount: content.length,
-      lineCount: content.length === 0 ? 0 : content.split(/\r?\n/).length,
-      markers: extractMarkers(relativePath, content),
-    });
+    files.push(createCollectedFile(filePath, relativePath, content));
   }
 
   return { files, skipped };
 }
 
-function splitOversizedFile(file: CollectedFile, maxChars: number): BundleChunk[] {
-  if (file.content.length <= maxChars) {
-    return [{
-      relativePath: file.relativePath,
-      extension: file.extension,
-      content: file.content,
-      originalCharCount: file.charCount,
-      originalLineCount: file.lineCount,
-      chunkIndex: 1,
-      chunkCount: 1,
-    }];
-  }
+function createSingleFileChunk(file: CollectedFile): BundleChunk {
+  return {
+    relativePath: file.relativePath,
+    extension: file.extension,
+    content: file.content,
+    originalCharCount: file.charCount,
+    originalLineCount: file.lineCount,
+    chunkIndex: 1,
+    chunkCount: 1,
+  };
+}
 
+function splitContentByMaxChars(content: string, maxChars: number): string[] {
   const chunks: string[] = [];
   let current = "";
 
-  for (const line of file.content.split(/(?<=\n)/)) {
+  for (const line of content.split(/(?<=\n)/)) {
     if (current.length > 0 && current.length + line.length > maxChars) {
       chunks.push(current);
       current = "";
@@ -234,8 +297,12 @@ function splitOversizedFile(file: CollectedFile, maxChars: number): BundleChunk[
     chunks.push(current);
   }
 
-  const chunkCount = chunks.length;
-  return chunks.map((content, index) => ({
+  return chunks;
+}
+
+function createSplitFileChunks(file: CollectedFile, chunkContents: string[]): BundleChunk[] {
+  const chunkCount = chunkContents.length;
+  return chunkContents.map((content, index) => ({
     relativePath: file.relativePath,
     extension: file.extension,
     content,
@@ -247,15 +314,46 @@ function splitOversizedFile(file: CollectedFile, maxChars: number): BundleChunk[
   }));
 }
 
-function buildParts(files: CollectedFile[], maxChars: number): { parts: BundlePart[]; warnings: string[] } {
+function splitOversizedFile(file: CollectedFile, maxChars: number): BundleChunk[] {
+  if (file.content.length <= maxChars) {
+    return [createSingleFileChunk(file)];
+  }
+
+  return createSplitFileChunks(file, splitContentByMaxChars(file.content, maxChars));
+}
+
+function createBundlePart(partNumber: number, chunks: BundleChunk[], charCount: number): BundlePart {
+  return {
+    fileName: `text-bundle-${String(partNumber).padStart(3, "0")}.md`,
+    partNumber,
+    chunks,
+    charCount,
+  };
+}
+
+function shouldStartNewPart(currentChunks: BundleChunk[], currentChars: number, nextChunk: BundleChunk, maxChars: number): boolean {
+  return currentChunks.length > 0 && currentChars + nextChunk.content.length > maxChars;
+}
+
+function warningForSplitFile(file: CollectedFile, chunkCount: number): string {
+  return `\`${file.relativePath}\` は --max-chars を超えたため ${chunkCount} 個に分割しました。`;
+}
+
+function buildChunks(files: CollectedFile[], maxChars: number): BundleChunksResult {
   const warnings: string[] = [];
   const chunks = files.flatMap((file) => {
     const fileChunks = splitOversizedFile(file, maxChars);
     if (fileChunks.length > 1) {
-      warnings.push(`\`${file.relativePath}\` は --max-chars を超えたため ${fileChunks.length} 個に分割しました。`);
+      warnings.push(warningForSplitFile(file, fileChunks.length));
     }
     return fileChunks;
   });
+
+  return { chunks, warnings };
+}
+
+function buildParts(files: CollectedFile[], maxChars: number): BundlePartsResult {
+  const { chunks, warnings } = buildChunks(files, maxChars);
 
   const parts: BundlePart[] = [];
   let currentChunks: BundleChunk[] = [];
@@ -265,19 +363,13 @@ function buildParts(files: CollectedFile[], maxChars: number): { parts: BundlePa
     if (currentChunks.length === 0) {
       return;
     }
-    const partNumber = parts.length + 1;
-    parts.push({
-      fileName: `text-bundle-${String(partNumber).padStart(3, "0")}.md`,
-      partNumber,
-      chunks: currentChunks,
-      charCount: currentChars,
-    });
+    parts.push(createBundlePart(parts.length + 1, currentChunks, currentChars));
     currentChunks = [];
     currentChars = 0;
   };
 
   for (const chunk of chunks) {
-    if (currentChunks.length > 0 && currentChars + chunk.content.length > maxChars) {
+    if (shouldStartNewPart(currentChunks, currentChars, chunk, maxChars)) {
       pushPart();
     }
     currentChunks.push(chunk);
@@ -286,6 +378,45 @@ function buildParts(files: CollectedFile[], maxChars: number): { parts: BundlePa
 
   pushPart();
   return { parts, warnings };
+}
+
+function writeBundleMarkdownFiles(params: BundleMarkdownWriteParams): BundleMarkdownPaths {
+  const { outputDirectory, inputDirectory, parts, collectedFiles, skippedFiles, markers, warnings } = params;
+  const indexPath = join(outputDirectory, INDEX_FILE_NAME);
+  const promptPath = join(outputDirectory, PROMPT_FILE_NAME);
+  const partPaths = parts.map((part) => join(outputDirectory, part.fileName));
+
+  for (const part of parts) {
+    writeFileSync(join(outputDirectory, part.fileName), buildPartMarkdown(part), "utf8");
+  }
+
+  writeFileSync(indexPath, buildIndexMarkdown({
+    inputDirectory,
+    outputDirectory,
+    parts,
+    collectedFiles,
+    skippedFiles,
+    markers,
+    warnings,
+  }), "utf8");
+
+  writeFileSync(promptPath, buildPromptMarkdown(parts.map((part) => part.fileName)), "utf8");
+
+  return { indexPath, promptPath, partPaths };
+}
+
+function printVerboseSummary(files: CollectedFile[], skipped: SkippedFile[], parts: BundlePart[]): void {
+  console.log(`collected=${files.length}`);
+  console.log(`skipped=${skipped.length}`);
+  console.log(`parts=${parts.length}`);
+}
+
+function printGeneratedPaths(indexPath: string, partPaths: string[], promptPath: string): void {
+  console.log(`generated: ${indexPath}`);
+  for (const partPath of partPaths) {
+    console.log(`generated: ${partPath}`);
+  }
+  console.log(`generated: ${promptPath}`);
 }
 
 export function createTextBundle(options: CliOptions, now = new Date()): BundleResult {
@@ -304,37 +435,21 @@ export function createTextBundle(options: CliOptions, now = new Date()): BundleR
   const markers = files.flatMap((file) => file.markers);
   const { parts, warnings } = buildParts(files, options.maxChars);
 
-  const indexPath = join(outputDirectory, INDEX_FILE_NAME);
-  const promptPath = join(outputDirectory, PROMPT_FILE_NAME);
-  const partPaths = parts.map((part) => join(outputDirectory, part.fileName));
-
-  for (const part of parts) {
-    writeFileSync(join(outputDirectory, part.fileName), buildPartMarkdown(part), "utf8");
-  }
-
-  writeFileSync(indexPath, buildIndexMarkdown({
-    inputDirectory: inputPath,
+  const { indexPath, promptPath, partPaths } = writeBundleMarkdownFiles({
     outputDirectory,
+    inputDirectory: inputPath,
     parts,
     collectedFiles: files,
     skippedFiles: skipped,
     markers,
     warnings,
-  }), "utf8");
-
-  writeFileSync(promptPath, buildPromptMarkdown(parts.map((part) => part.fileName)), "utf8");
+  });
 
   if (options.verbose) {
-    console.log(`collected=${files.length}`);
-    console.log(`skipped=${skipped.length}`);
-    console.log(`parts=${parts.length}`);
+    printVerboseSummary(files, skipped, parts);
   }
 
-  console.log(`generated: ${indexPath}`);
-  for (const partPath of partPaths) {
-    console.log(`generated: ${partPath}`);
-  }
-  console.log(`generated: ${promptPath}`);
+  printGeneratedPaths(indexPath, partPaths, promptPath);
 
   return {
     outputDirectory,

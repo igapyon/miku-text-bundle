@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { chooseOutputDirectory, createTextBundle, defaultOutputBase } from "../src/main.js";
+import type { CliOptions } from "../src/main.js";
 
 const tempRoots: string[] = [];
 
@@ -16,6 +17,17 @@ function makeTempRepo(): string {
 function writeFile(path: string, content: string | Buffer): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content);
+}
+
+function bundleOptions(root: string, overrides: Partial<CliOptions> = {}): CliOptions {
+  return {
+    inputDirectory: root,
+    maxChars: 120000,
+    includePatterns: [],
+    excludePatterns: [],
+    verbose: false,
+    ...overrides,
+  };
 }
 
 afterEach(() => {
@@ -46,13 +58,7 @@ describe("createTextBundle", () => {
     writeFile(join(root, ".gitignore"), "ignored.ts\n");
     writeFile(join(root, "src", "ignored.ts"), "const ignored = true;\n");
 
-    const result = createTextBundle({
-      inputDirectory: root,
-      maxChars: 120000,
-      includePatterns: [],
-      excludePatterns: [],
-      verbose: false,
-    }, new Date(2026, 4, 5, 12, 52));
+    const result = createTextBundle(bundleOptions(root), new Date(2026, 4, 5, 12, 52));
 
     expect(result.filesCollected).toBe(3);
     expect(result.partsGenerated).toBe(1);
@@ -75,13 +81,7 @@ describe("createTextBundle", () => {
     const root = makeTempRepo();
     writeFile(join(root, "src", "main.ts"), Buffer.from([0, 1, 2, 3]));
 
-    const result = createTextBundle({
-      inputDirectory: root,
-      maxChars: 120000,
-      includePatterns: [],
-      excludePatterns: [],
-      verbose: false,
-    }, new Date(2026, 4, 5, 12, 53));
+    const result = createTextBundle(bundleOptions(root), new Date(2026, 4, 5, 12, 53));
 
     const index = readFileSync(result.indexPath, "utf8");
     expect(result.filesSkipped).toBe(1);
@@ -93,14 +93,10 @@ describe("createTextBundle", () => {
     writeFile(join(root, "README.md"), "# README\n");
     writeFile(join(root, "docs", "huge.md"), "x".repeat(101));
 
-    const result = createTextBundle({
-      inputDirectory: root,
-      maxChars: 120000,
+    const result = createTextBundle(bundleOptions(root, {
       maxInputFileBytes: 100,
       includePatterns: ["docs/**/*.md"],
-      excludePatterns: [],
-      verbose: false,
-    }, new Date(2026, 4, 5, 12, 56));
+    }), new Date(2026, 4, 5, 12, 56));
 
     const index = readFileSync(result.indexPath, "utf8");
     const part = readFileSync(result.partPaths[0]!, "utf8");
@@ -115,13 +111,9 @@ describe("createTextBundle", () => {
     const root = makeTempRepo();
     writeFile(join(root, "src", "large.ts"), "line1\nline2\nline3\nline4\n");
 
-    const result = createTextBundle({
-      inputDirectory: root,
+    const result = createTextBundle(bundleOptions(root, {
       maxChars: 12,
-      includePatterns: [],
-      excludePatterns: [],
-      verbose: false,
-    }, new Date(2026, 4, 5, 12, 54));
+    }), new Date(2026, 4, 5, 12, 54));
 
     expect(result.partsGenerated).toBeGreaterThan(1);
     const index = readFileSync(result.indexPath, "utf8");
@@ -140,13 +132,10 @@ describe("createTextBundle", () => {
     writeFile(join(root, ".gitignore"), "ignored.md\n");
     writeFile(join(root, "docs", "ignored.md"), "# Ignored\n");
 
-    const result = createTextBundle({
-      inputDirectory: root,
-      maxChars: 120000,
+    const result = createTextBundle(bundleOptions(root, {
       includePatterns: ["docs/**/*.md", ".secret/**/*.md"],
       excludePatterns: ["docs/skip.md"],
-      verbose: false,
-    }, new Date(2026, 4, 5, 12, 55));
+    }), new Date(2026, 4, 5, 12, 55));
 
     const index = readFileSync(result.indexPath, "utf8");
     expect(index).toContain("`README.md`");
@@ -163,13 +152,7 @@ describe("createTextBundle", () => {
     writeFile(join(root, "src", "main.ts"), "const value = 1;\n");
     writeFile(join(root, "src", "bad.ts"), Buffer.from([0]));
 
-    const result = createTextBundle({
-      inputDirectory: root,
-      maxChars: 120000,
-      includePatterns: [],
-      excludePatterns: [],
-      verbose: false,
-    }, new Date(2026, 4, 5, 12, 57));
+    const result = createTextBundle(bundleOptions(root), new Date(2026, 4, 5, 12, 57));
 
     const index = readFileSync(result.indexPath, "utf8");
     expect(index).toContain("# Text Bundle Index\n");
@@ -186,13 +169,7 @@ describe("createTextBundle", () => {
     const root = makeTempRepo();
     writeFile(join(root, "README.md"), "See TODO.md for project tasks.\nTODO: actionable item\n");
 
-    const result = createTextBundle({
-      inputDirectory: root,
-      maxChars: 120000,
-      includePatterns: [],
-      excludePatterns: [],
-      verbose: false,
-    }, new Date(2026, 4, 5, 13, 0));
+    const result = createTextBundle(bundleOptions(root), new Date(2026, 4, 5, 13, 0));
 
     const index = readFileSync(result.indexPath, "utf8");
     expect(index).toContain("TODO: actionable item");
@@ -204,13 +181,7 @@ describe("createTextBundle", () => {
     writeFile(join(root, "README.md"), "# README\n");
     writeFile(join(root, "src", "main.ts"), "const value = 1;\n");
 
-    const result = createTextBundle({
-      inputDirectory: root,
-      maxChars: 120000,
-      includePatterns: [],
-      excludePatterns: [],
-      verbose: false,
-    }, new Date(2026, 4, 5, 12, 58));
+    const result = createTextBundle(bundleOptions(root), new Date(2026, 4, 5, 12, 58));
 
     const prompt = readFileSync(result.promptPath, "utf8");
     expect(prompt).toContain("# Text Bundle Prompt\n");
@@ -229,13 +200,7 @@ describe("createTextBundle", () => {
     const root = makeTempRepo();
     writeFile(join(root, "src", "main.ts"), "const value = 1;\n");
 
-    const result = createTextBundle({
-      inputDirectory: root,
-      maxChars: 120000,
-      includePatterns: [],
-      excludePatterns: [],
-      verbose: false,
-    }, new Date(2026, 4, 5, 12, 59));
+    const result = createTextBundle(bundleOptions(root), new Date(2026, 4, 5, 12, 59));
 
     const part = readFileSync(result.partPaths[0]!, "utf8");
     expect(part).toContain("# Text Bundle Part 001");

@@ -14,6 +14,10 @@ on:
 permissions:
   contents: write
 
+env:
+  PRODUCT_NAME: miku-text-bundle
+  RELEASE_ASSETS_DIR: release-assets
+
 jobs:
   release-cli-bundle:
     runs-on: ubuntu-latest
@@ -25,7 +29,7 @@ jobs:
       - name: Checkout release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name || github.event.inputs.tag_name }}
+          ref: ${{ env.TAG_NAME }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -63,9 +67,9 @@ jobs:
       - name: Prepare release assets
         run: |
           version="${TAG_NAME#v}"
-          mkdir -p release-assets
-          cp bundle/miku-text-bundle.mjs "release-assets/miku-text-bundle-${version}.mjs"
-          cp bundle/miku-text-bundle-sources.tgz "release-assets/miku-text-bundle-sources-${version}.tgz"
+          mkdir -p "${RELEASE_ASSETS_DIR}"
+          cp "bundle/${PRODUCT_NAME}.mjs" "${RELEASE_ASSETS_DIR}/${PRODUCT_NAME}-${version}.mjs"
+          cp "bundle/${PRODUCT_NAME}-sources.tgz" "${RELEASE_ASSETS_DIR}/${PRODUCT_NAME}-sources-${version}.tgz"
 
       - name: Verify CLI bundle asset
         run: npm run smoke:bundle
@@ -73,4 +77,4 @@ jobs:
       - name: Upload CLI bundle assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$TAG_NAME" release-assets/* --clobber
+        run: gh release upload "$TAG_NAME" "${RELEASE_ASSETS_DIR}"/* --clobber
