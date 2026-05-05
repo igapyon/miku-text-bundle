@@ -35,9 +35,9 @@ describe("CLI subprocess", () => {
     });
 
     expect(stdout).toContain("completed:");
-    expect(readFileSync(join(output, "text-bundle-index.md"), "utf8")).toContain("src/main.ts");
+    expect(readFileSync(join(output, "text-bundle-000-index.md"), "utf8")).toContain("src/main.ts");
     expect(readFileSync(join(output, "text-bundle-001.md"), "utf8")).toContain("### src/main.ts");
-    expect(readFileSync(join(output, "text-bundle-prompt.md"), "utf8")).toContain("text-bundle-response.md");
+    expect(readFileSync(join(output, "text-bundle-000-prompt.md"), "utf8")).toContain("text-bundle-response.md");
   });
 
   it("applies max input file bytes from the CLI", () => {
@@ -50,7 +50,7 @@ describe("CLI subprocess", () => {
       encoding: "utf8",
     });
 
-    const index = readFileSync(join(output, "text-bundle-index.md"), "utf8");
+    const index = readFileSync(join(output, "text-bundle-000-index.md"), "utf8");
     const part = readFileSync(join(output, "text-bundle-001.md"), "utf8");
     expect(stdout).toContain("completed:");
     expect(index).toContain("`docs/huge.md`");

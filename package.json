@@ -1,6 +1,6 @@
 {
   "name": "miku-text-bundle",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "description": "CLI tool to collect repository text files into split Markdown bundles for generative AI handoff.",
   "license": "Apache-2.0",
   "type": "module",

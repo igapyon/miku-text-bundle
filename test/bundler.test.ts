@@ -67,7 +67,7 @@ describe("createTextBundle", () => {
     expect(index).not.toContain("ignored.ts");
     expect(part).toContain("### src/main.ts");
     expect(part).toContain("```ts");
-    expect(prompt).toContain("text-bundle-index.md");
+    expect(prompt).toContain("text-bundle-000-index.md");
     expect(prompt).toContain("text-bundle-response.md");
   });
 
@@ -182,6 +182,23 @@ describe("createTextBundle", () => {
     expect(index).toContain("| File | Line | Kind | Text |");
   });
 
+  it("does not extract markers from filename references", () => {
+    const root = makeTempRepo();
+    writeFile(join(root, "README.md"), "See TODO.md for project tasks.\nTODO: actionable item\n");
+
+    const result = createTextBundle({
+      inputDirectory: root,
+      maxChars: 120000,
+      includePatterns: [],
+      excludePatterns: [],
+      verbose: false,
+    }, new Date(2026, 4, 5, 13, 0));
+
+    const index = readFileSync(result.indexPath, "utf8");
+    expect(index).toContain("TODO: actionable item");
+    expect(index).not.toContain("See TODO.md for project tasks.");
+  });
+
   it("writes the prompt Markdown reading order and response contract", () => {
     const root = makeTempRepo();
     writeFile(join(root, "README.md"), "# README\n");
@@ -198,7 +215,7 @@ describe("createTextBundle", () => {
     const prompt = readFileSync(result.promptPath, "utf8");
     expect(prompt).toContain("# Text Bundle Prompt\n");
     expect(prompt).toContain("## 読み込み順");
-    expect(prompt).toContain("1. `text-bundle-index.md`");
+    expect(prompt).toContain("1. `text-bundle-000-index.md`");
     expect(prompt).toContain("2. `text-bundle-001.md`");
     expect(prompt).toContain("`受領しました`");
     expect(prompt).toContain("`END_OF_TEXT_BUNDLE`");
