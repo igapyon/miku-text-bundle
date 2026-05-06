@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { HelpRequestedError, parseArgs, printHelp } from "../src/main.js";
+import { CLI_VERSION, HelpRequestedError, parseArgs, printHelp, printVersion, VersionRequestedError } from "../src/main.js";
 
 describe("parseArgs", () => {
   it("parses positional arguments and options", () => {
@@ -26,6 +26,12 @@ describe("parseArgs", () => {
 
   it("signals help requests", () => {
     expect(() => parseArgs(["--help"])).toThrow(HelpRequestedError);
+    expect(() => parseArgs(["-h"])).toThrow(HelpRequestedError);
+  });
+
+  it("signals version requests", () => {
+    expect(() => parseArgs(["--version"])).toThrow(VersionRequestedError);
+    expect(() => parseArgs(["-v"])).toThrow(VersionRequestedError);
   });
 });
 
@@ -44,5 +50,22 @@ describe("printHelp", () => {
     expect(output).toContain("miku-text-bundle <inputDir>");
     expect(output).toContain("--max-chars");
     expect(output).toContain("--max-input-file-bytes");
+    expect(output).toContain("--version");
+  });
+});
+
+describe("printVersion", () => {
+  it("prints the package version", () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    let output = "";
+
+    try {
+      printVersion();
+      output = logSpy.mock.calls.map((call) => call.join(" ")).join("\n");
+    } finally {
+      logSpy.mockRestore();
+    }
+
+    expect(output).toBe(CLI_VERSION);
   });
 });

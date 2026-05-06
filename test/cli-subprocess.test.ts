@@ -51,6 +51,13 @@ describe("CLI subprocess", () => {
     expect(readOutputFile(output, promptFileName)).toContain("text-bundle-response.md");
   });
 
+  it("prints help and version from dist/main.js", () => {
+    const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
+
+    expect(runCli(["--help"])).toContain("Usage:");
+    expect(runCli(["--version"])).toBe(`${packageJson.version}\n`);
+  });
+
   it("applies max input file bytes from the CLI", () => {
     const root = makeTempRepo();
     const output = join(root, "out");

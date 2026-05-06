@@ -27,8 +27,11 @@ const bundledModuleOrder = [
 
 const bundleExportNames = [
   "HelpRequestedError",
+  "VersionRequestedError",
+  "CLI_VERSION",
   "parseArgs",
   "printHelp",
+  "printVersion",
   "createTextBundle",
   "chooseOutputDirectory",
   "defaultOutputBase",
@@ -48,6 +51,7 @@ const sourceArchiveEntries = [
   "src",
   "test",
   "docs/gitignore-limitations.md",
+  "docs/project-design.md",
   "README.md",
   "TODO.md",
   "LICENSE",
