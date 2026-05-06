@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { pathToFileURL } from "node:url";
-import { HelpRequestedError, parseArgs, printHelp } from "./cli.js";
+import { HelpRequestedError, parseArgs, printHelp, printVersion, VersionRequestedError } from "./cli.js";
 import { createTextBundle } from "./bundler.js";
 
 export type {
@@ -13,7 +13,7 @@ export type {
   Marker,
   SkippedFile,
 } from "./types.js";
-export { HelpRequestedError, parseArgs, printHelp } from "./cli.js";
+export { CLI_VERSION, HelpRequestedError, parseArgs, printHelp, printVersion, VersionRequestedError } from "./cli.js";
 export { createTextBundle, chooseOutputDirectory, defaultOutputBase } from "./bundler.js";
 export { buildIndexMarkdown, buildPartMarkdown, buildPromptMarkdown } from "./markdown.js";
 export { matchesAnyPattern, matchesGitignore, parseGitignore } from "./match.js";
@@ -27,6 +27,11 @@ export function main(): void {
   } catch (error) {
     if (error instanceof HelpRequestedError) {
       printHelp();
+      process.exit(0);
+    }
+
+    if (error instanceof VersionRequestedError) {
+      printVersion();
       process.exit(0);
     }
 

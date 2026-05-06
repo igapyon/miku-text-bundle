@@ -10,6 +10,13 @@
 miku-text-bundle <inputDir> [outputDir] --max-chars 120000 --max-input-file-bytes 1000000
 ```
 
+ヘルプとバージョンを確認できます。
+
+```bash
+miku-text-bundle --help
+miku-text-bundle --version
+```
+
 ローカルでビルド済みの CLI を直接実行する場合は次のように使います。
 
 ```bash
@@ -33,6 +40,8 @@ workplace/miku-text-bundle/<yyyyMMddHHmm>/
 - `--include "glob"`: 追加で収集するファイルパターンを指定する。カンマ区切りで複数指定できます。
 - `--exclude "glob"`: 収集対象から除外するファイルパターンを指定する。カンマ区切りで複数指定できます。
 - `--verbose`: 収集数、スキップ数、Part 数を標準出力に表示する。
+- `--help`, `-h`: ヘルプを表示する。
+- `--version`, `-v`: バージョンを表示する。
 
 ## デフォルト収集範囲
 

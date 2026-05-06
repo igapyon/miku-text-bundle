@@ -2,6 +2,7 @@ import type { CliOptions } from "./types.js";
 
 const CLI_DEFAULT_MAX_CHARS = 120000;
 const CLI_DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
+export const CLI_VERSION = "0.5.1";
 
 type ParseState = {
   inputDirectory?: string;
@@ -18,6 +19,13 @@ export class HelpRequestedError extends Error {
   constructor() {
     super("Help requested.");
     this.name = "HelpRequestedError";
+  }
+}
+
+export class VersionRequestedError extends Error {
+  constructor() {
+    super("Version requested.");
+    this.name = "VersionRequestedError";
   }
 }
 
@@ -60,6 +68,10 @@ function consumeOption(argv: string[], index: number, state: ParseState): number
 
   if (arg === "--help" || arg === "-h") {
     throw new HelpRequestedError();
+  }
+
+  if (arg === "--version" || arg === "-v") {
+    throw new VersionRequestedError();
   }
 
   if (arg === "--input-directory") {
@@ -152,10 +164,16 @@ export function printHelp(): void {
   console.log(`Usage:
   miku-text-bundle <inputDir> [outputDir] [--max-chars 120000] [--max-input-file-bytes 1000000] [--include "glob"] [--exclude "glob"] [--verbose]
   miku-text-bundle --input-directory <dir> [--output-directory <dir>] [--max-chars 120000] [--max-input-file-bytes 1000000]
+  miku-text-bundle --help
+  miku-text-bundle --version
 
 Description:
   Collect repository text files and generate split Markdown bundles for
   generative AI handoff. When outputDir is omitted, outputs are written under
   workplace/miku-text-bundle/<yyyyMMddHHmm>/.
 `);
+}
+
+export function printVersion(): void {
+  console.log(CLI_VERSION);
 }

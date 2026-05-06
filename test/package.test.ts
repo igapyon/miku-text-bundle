@@ -2,16 +2,17 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
-const PACKAGE_RUNTIME_FILES = ["dist/", "README.md", "docs/gitignore-limitations.md", "LICENSE"];
+const PACKAGE_RUNTIME_FILES = ["dist/", "README.md", "docs/gitignore-limitations.md", "docs/project-design.md", "LICENSE"];
 const REQUIRED_PACK_FILES = [
   "README.md",
   "docs/gitignore-limitations.md",
+  "docs/project-design.md",
   "LICENSE",
   "package.json",
   "dist/main.js",
   "dist/main.d.ts",
 ];
-const ALLOWED_PACK_ROOT_FILES = ["README.md", "docs/gitignore-limitations.md", "LICENSE", "package.json"];
+const ALLOWED_PACK_ROOT_FILES = ["README.md", "docs/gitignore-limitations.md", "docs/project-design.md", "LICENSE", "package.json"];
 
 function npmPackDryRunFiles(): string[] {
   const result = spawnSync("npm", ["pack", "--dry-run", "--json"], {
@@ -48,6 +49,12 @@ describe("package metadata", () => {
     repository: { type: string; url: string };
     devDependencies: Record<string, string>;
   };
+
+  it("keeps the CLI version in sync with package.json", async () => {
+    const { CLI_VERSION } = await import("../src/main.js");
+
+    expect(CLI_VERSION).toBe(packageJson.version);
+  });
 
   it("declares the CLI package shape", () => {
     expect(packageJson.name).toBe("miku-text-bundle");
