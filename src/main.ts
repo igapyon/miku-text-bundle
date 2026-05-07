@@ -10,8 +10,10 @@ export type {
   BundleResult,
   CliOptions,
   CollectedFile,
+  EncodingOptions,
   Marker,
   SkippedFile,
+  SupportedEncoding,
 } from "./types.js";
 export { CLI_VERSION, HelpRequestedError, parseArgs, printHelp, printVersion, VersionRequestedError } from "./cli.js";
 export { createTextBundle, chooseOutputDirectory, defaultOutputBase } from "./bundler.js";
