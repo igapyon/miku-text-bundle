@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
+import iconv from "iconv-lite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { chooseOutputDirectory, createTextBundle, defaultOutputBase } from "../src/main.js";
@@ -23,6 +24,10 @@ function bundleOptions(root: string, overrides: Partial<CliOptions> = {}): CliOp
   return {
     inputDirectory: root,
     maxChars: 120000,
+    encoding: {
+      default: "utf-8",
+      extensions: {},
+    },
     includePatterns: [],
     excludePatterns: [],
     verbose: false,
@@ -86,6 +91,42 @@ describe("createTextBundle", () => {
     const index = readFileSync(result.indexPath, "utf8");
     expect(result.filesSkipped).toBe(1);
     expect(index).toContain("UTF-8");
+  });
+
+  it("uses extension encoding rules for Shift_JIS files", () => {
+    const root = makeTempRepo();
+    writeFile(join(root, "src", "Legacy.java"), iconv.encode("こんにちは\n", "shift_jis"));
+
+    const result = createTextBundle(bundleOptions(root, {
+      encoding: {
+        default: "utf-8",
+        extensions: {
+          ".java": "shift_jis",
+        },
+      },
+    }), new Date(2026, 4, 5, 12, 58));
+
+    const part = readFileSync(result.partPaths[0]!, "utf8");
+    expect(result.filesCollected).toBe(1);
+    expect(result.filesSkipped).toBe(0);
+    expect(part).toContain("こんにちは");
+  });
+
+  it("uses the default encoding when no extension rule matches", () => {
+    const root = makeTempRepo();
+    writeFile(join(root, "README.md"), iconv.encode("# 説明\n", "shift_jis"));
+
+    const result = createTextBundle(bundleOptions(root, {
+      encoding: {
+        default: "shift_jis",
+        extensions: {},
+      },
+    }), new Date(2026, 4, 5, 12, 59));
+
+    const part = readFileSync(result.partPaths[0]!, "utf8");
+    expect(result.filesCollected).toBe(1);
+    expect(result.filesSkipped).toBe(0);
+    expect(part).toContain("# 説明");
   });
 
   it("skips explicitly included files that exceed the input file byte limit", () => {

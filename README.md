@@ -7,7 +7,7 @@
 ## 使い方
 
 ```bash
-miku-text-bundle <inputDir> [outputDir] --max-chars 120000 --max-input-file-bytes 1000000
+miku-text-bundle <inputDir> [outputDir] --max-chars 120000 --max-input-file-bytes 1000000 --encoding utf-8
 ```
 
 ヘルプとバージョンを確認できます。
@@ -37,6 +37,8 @@ workplace/miku-text-bundle/<yyyyMMddHHmm>/
 - `--output-directory <dir>`: 出力ディレクトリを名前付きで指定する。
 - `--max-chars <number>`: バンドル Part ごとの最大文字数を指定する。デフォルトは `120000`。
 - `--max-input-file-bytes <number>`: 単一入力ファイルの最大読み込み bytes を指定する。デフォルトは `1000000`。
+- `--encoding utf-8|shift_jis`: 入力ファイルのデフォルト文字コードを指定する。デフォルトは `utf-8`。
+- `--encoding-extension ".java=shift_jis"`: 拡張子ごとの文字コードを指定する。カンマ区切りで複数指定できます。
 - `--include "glob"`: 追加で収集するファイルパターンを指定する。カンマ区切りで複数指定できます。
 - `--exclude "glob"`: 収集対象から除外するファイルパターンを指定する。カンマ区切りで複数指定できます。
 - `--verbose`: 収集数、スキップ数、Part 数を標準出力に表示する。
@@ -64,7 +66,15 @@ workplace/miku-text-bundle/<yyyyMMddHHmm>/
 
 ## 入力ファイルの扱い
 
-入力文字コードは UTF-8 を前提にします。UTF-8 として読めないファイル、またはバイナリと判定したファイルはスキップし、`text-bundle-000-index.md` に理由を記録します。
+入力文字コードのデフォルトは UTF-8 です。`--encoding shift_jis` を指定すると、収集対象ファイルをデフォルトで Shift_JIS として読みます。
+
+拡張子ごとに文字コードを変える場合は、`--encoding-extension` を使います。拡張子ルールはデフォルト文字コードより優先されます。
+
+```bash
+miku-text-bundle . --encoding utf-8 --encoding-extension ".java=shift_jis,.properties=shift_jis"
+```
+
+対応する文字コードは `utf-8` と `shift_jis` です。文字コードの自動判定は行いません。指定された文字コードとして読めないファイル、またはバイナリと判定したファイルはスキップし、`text-bundle-000-index.md` に理由を記録します。
 
 単一入力ファイルのデフォルト読み込み上限は `1000000` bytes です。上限を超えるファイルは読み込まずにスキップし、`text-bundle-000-index.md` に理由を記録します。上限は `--max-input-file-bytes` で変更できます。
 

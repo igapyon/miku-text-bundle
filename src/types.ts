@@ -1,8 +1,16 @@
+export type SupportedEncoding = "utf-8" | "shift_jis";
+
+export type EncodingOptions = {
+  default: SupportedEncoding;
+  extensions: Record<string, SupportedEncoding>;
+};
+
 export type CliOptions = {
   inputDirectory: string;
   outputDirectory?: string;
   maxChars: number;
   maxInputFileBytes?: number;
+  encoding?: EncodingOptions;
   includePatterns: string[];
   excludePatterns: string[];
   verbose: boolean;

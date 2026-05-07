@@ -9,6 +9,10 @@ describe("parseArgs", () => {
       outputDirectory: "out",
       maxChars: 1000,
       maxInputFileBytes: 2000,
+      encoding: {
+        default: "utf-8",
+        extensions: {},
+      },
       includePatterns: ["docs/**/*.md", "package.json"],
       excludePatterns: ["test/**"],
       verbose: true,
@@ -21,7 +25,30 @@ describe("parseArgs", () => {
       outputDirectory: "out",
       maxChars: 120000,
       maxInputFileBytes: 1000000,
+      encoding: {
+        default: "utf-8",
+        extensions: {},
+      },
     });
+  });
+
+  it("parses default and extension encoding options", () => {
+    expect(parseArgs([".", "--encoding", "shift_jis", "--encoding-extension", ".ts=utf-8,.java=shift_jis"])).toMatchObject({
+      inputDirectory: ".",
+      encoding: {
+        default: "shift_jis",
+        extensions: {
+          ".ts": "utf-8",
+          ".java": "shift_jis",
+        },
+      },
+    });
+  });
+
+  it("rejects unsupported encoding options", () => {
+    expect(() => parseArgs([".", "--encoding", "latin1"])).toThrow("--encoding must be one of");
+    expect(() => parseArgs([".", "--encoding-extension", "java=shift_jis"])).toThrow("leading dot");
+    expect(() => parseArgs([".", "--encoding-extension", ".java=latin1"])).toThrow("--encoding-extension must be one of");
   });
 
   it("signals help requests", () => {
@@ -50,6 +77,8 @@ describe("printHelp", () => {
     expect(output).toContain("miku-text-bundle <inputDir>");
     expect(output).toContain("--max-chars");
     expect(output).toContain("--max-input-file-bytes");
+    expect(output).toContain("--encoding");
+    expect(output).toContain("--encoding-extension");
     expect(output).toContain("--version");
   });
 });

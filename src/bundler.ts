@@ -1,10 +1,11 @@
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, extname, join, relative, resolve } from "node:path";
 import { TextDecoder } from "node:util";
+import iconv from "iconv-lite";
 import { buildIndexMarkdown, buildPartMarkdown, buildPromptMarkdown } from "./markdown.js";
 import { matchesAnyPattern, matchesGitignore, parseGitignore } from "./match.js";
 import { getExtension, toPosixPath } from "./path-utils.js";
-import type { BundleChunk, BundlePart, BundleResult, CliOptions, CollectedFile, Marker, SkippedFile } from "./types.js";
+import type { BundleChunk, BundlePart, BundleResult, CliOptions, CollectedFile, Marker, SkippedFile, SupportedEncoding } from "./types.js";
 
 type CollectedFilesResult = {
   files: CollectedFile[];
@@ -43,6 +44,10 @@ const DEFAULT_ROOT_FILES = ["README.md", "TODO.md"];
 const INDEX_FILE_NAME = "text-bundle-000-index.md";
 const PROMPT_FILE_NAME = "text-bundle-000-prompt.md";
 const DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
+const DEFAULT_ENCODING_OPTIONS = {
+  default: "utf-8",
+  extensions: {} as Record<string, SupportedEncoding>,
+} satisfies NonNullable<CliOptions["encoding"]>;
 
 function formatTimestamp(date: Date): string {
   const pad = (value: number): string => String(value).padStart(2, "0");
@@ -176,16 +181,29 @@ function discoverCandidateFiles(inputPath: string, options: CliOptions, gitignor
     .sort((a, b) => relativeInputPath(inputPath, a).localeCompare(relativeInputPath(inputPath, b), "ja"));
 }
 
-function decodeUtf8(buffer: Buffer): string | undefined {
+function selectEncoding(relativePath: string, options: CliOptions): SupportedEncoding {
+  const extension = extname(relativePath);
+  const encoding = options.encoding ?? DEFAULT_ENCODING_OPTIONS;
+  return encoding.extensions[extension] ?? encoding.default;
+}
+
+function decodeText(buffer: Buffer, encoding: SupportedEncoding): string | undefined {
   if (buffer.includes(0)) {
     return undefined;
   }
 
   try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+    if (encoding === "utf-8") {
+      return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+    }
+    return iconv.decode(buffer, "shift_jis");
   } catch {
     return undefined;
   }
+}
+
+function formatEncoding(encoding: SupportedEncoding): string {
+  return encoding === "utf-8" ? "UTF-8" : "Shift_JIS";
 }
 
 function extractMarkers(relativePath: string, content: string): Marker[] {
@@ -211,10 +229,10 @@ function skippedForOversizedFile(relativePath: string, maxInputFileBytes: number
   };
 }
 
-function skippedForUnreadableFile(relativePath: string): SkippedFile {
+function skippedForUnreadableFile(relativePath: string, encoding: SupportedEncoding): SkippedFile {
   return {
     relativePath,
-    reason: "UTF-8 として読めない、またはバイナリと判定したためスキップしました。",
+    reason: `${formatEncoding(encoding)} として読めない、またはバイナリと判定したためスキップしました。`,
   };
 }
 
@@ -244,10 +262,11 @@ function collectFiles(inputPath: string, options: CliOptions, gitignorePatterns:
     }
 
     const buffer = readFileSync(filePath);
-    const content = decodeUtf8(buffer);
+    const encoding = selectEncoding(relativePath, options);
+    const content = decodeText(buffer, encoding);
 
     if (content === undefined) {
-      skipped.push(skippedForUnreadableFile(relativePath));
+      skipped.push(skippedForUnreadableFile(relativePath, encoding));
       continue;
     }
 
