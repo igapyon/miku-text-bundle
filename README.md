@@ -31,6 +31,8 @@ workplace/miku-text-bundle/<yyyyMMddHHmm>/
 
 同じ分に既に同名の出力ディレクトリがある場合は、末尾に `-1`, `-2` のような連番 suffix を付けます。
 
+CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/igapyon/items/c67f37ffe4d0fd1eed9d) を参照してください。
+
 ## 主なオプション
 
 - `--input-directory <dir>`: 入力ディレクトリを名前付きで指定する。

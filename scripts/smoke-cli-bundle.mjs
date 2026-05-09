@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -37,10 +37,22 @@ function assertBundleArtifacts() {
 
 function writeSmokeInput() {
   writeFileSync(join(root, "README.md"), "# README\n");
+  mkdirSync(join(root, "src"), { recursive: true });
+  writeFileSync(join(root, "src", "Legacy.java"), Buffer.from([
+    0x82, 0xb1, 0x82, 0xf1, 0x82, 0xc9, 0x82, 0xbf, 0x82, 0xcd, 0x0a,
+  ]));
 }
 
 function runBundleCli() {
-  execFileSync(process.execPath, [bundlePath, root, outputDirectory, "--max-chars", maxChars], {
+  execFileSync(process.execPath, [
+    bundlePath,
+    root,
+    outputDirectory,
+    "--max-chars",
+    maxChars,
+    "--encoding-extension",
+    ".java=shift_jis",
+  ], {
     encoding: "utf8",
   });
 }
@@ -51,8 +63,11 @@ function assertSmokeOutput() {
   const part = readFileSync(join(outputDirectory, firstPartFileName), "utf8");
 
   assertIncludes(index, "README.md", indexFileName);
+  assertIncludes(index, "src/Legacy.java", indexFileName);
   assertIncludes(prompt, "END_OF_TEXT_BUNDLE", promptFileName);
   assertIncludes(part, "### README.md", firstPartFileName);
+  assertIncludes(part, "### src/Legacy.java", firstPartFileName);
+  assertIncludes(part, "こんにちは", firstPartFileName);
 }
 
 try {
