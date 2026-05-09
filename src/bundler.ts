@@ -1,7 +1,6 @@
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, relative, resolve } from "node:path";
 import { TextDecoder } from "node:util";
-import iconv from "iconv-lite";
 import { buildIndexMarkdown, buildPartMarkdown, buildPromptMarkdown } from "./markdown.js";
 import { matchesAnyPattern, matchesGitignore, parseGitignore } from "./match.js";
 import { getExtension, toPosixPath } from "./path-utils.js";
@@ -193,10 +192,7 @@ function decodeText(buffer: Buffer, encoding: SupportedEncoding): string | undef
   }
 
   try {
-    if (encoding === "utf-8") {
-      return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
-    }
-    return iconv.decode(buffer, "shift_jis");
+    return new TextDecoder(encoding, { fatal: true }).decode(buffer);
   } catch {
     return undefined;
   }

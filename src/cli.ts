@@ -2,7 +2,7 @@ import type { CliOptions, EncodingOptions, SupportedEncoding } from "./types.js"
 
 const CLI_DEFAULT_MAX_CHARS = 120000;
 const CLI_DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
-export const CLI_VERSION = "0.5.3";
+export const CLI_VERSION = "0.5.4";
 const SUPPORTED_ENCODINGS = new Set<SupportedEncoding>(["utf-8", "shift_jis"]);
 
 type ParseState = {
