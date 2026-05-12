@@ -7,12 +7,12 @@ export type EncodingOptions = {
 
 export type CliOptions = {
   inputDirectory: string;
-  outputDirectory?: string;
+  outputDirectory: string;
   maxChars: number;
   maxInputFileBytes?: number;
   encoding?: EncodingOptions;
-  includePatterns: string[];
-  excludePatterns: string[];
+  excludeExtensions?: string[];
+  excludeDirectories?: string[];
   verbose: boolean;
 };
 
@@ -36,6 +36,15 @@ export type Marker = {
 export type SkippedFile = {
   relativePath: string;
   reason: string;
+};
+
+export type IgnoreStats = {
+  directories: number;
+  files: number;
+  byDirectory: number;
+  byExtension: number;
+  byGitignore: number;
+  byOutputDirectory: number;
 };
 
 export type BundleChunk = {
@@ -63,6 +72,12 @@ export type BundleResult = {
   partPaths: string[];
   filesCollected: number;
   filesSkipped: number;
+  directoriesIgnored: number;
+  filesIgnored: number;
+  ignoredByDirectory: number;
+  ignoredByExtension: number;
+  ignoredByGitignore: number;
+  ignoredByOutputDirectory: number;
   partsGenerated: number;
   warnings: string[];
 };

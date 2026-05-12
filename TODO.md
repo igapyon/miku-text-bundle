@@ -31,15 +31,16 @@
 ```bash
 npm run build
 npm audit --audit-level=moderate
-node dist/main.js . --max-chars 5000
+node dist/main.js --input . --output out --max-chars 5000
 ```
 
-Use the generated `workplace/miku-text-bundle/<yyyyMMddHHmm>/` output as the human review artifact for the final check.
+Use the generated output directory as the human review artifact for the final check.
 
 ## Implementation Notes
 
 - The code intentionally reads only the repository-root `.gitignore`.
-- Include patterns must not restore `.gitignore`-excluded files or repository-root dot directory files.
+- The CLI requires `--input` and `--output`; positional input/output arguments are not supported.
+- Default binary extension and directory exclusion lists can be adjusted with `--add-exclude-*` and `--remove-exclude-*` options.
 - The default single input file limit is 1,000,000 bytes and can be changed with `--max-input-file-bytes`.
 - `workplace/` output is ignored by Git except for `workplace/.gitkeep`.
 - `npm pack --dry-run` uses `workplace/.npm-cache` through the `pack:check` script to avoid local npm cache permission issues.

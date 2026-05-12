@@ -46,7 +46,9 @@ function writeSmokeInput() {
 function runBundleCli() {
   execFileSync(process.execPath, [
     bundlePath,
+    "--input",
     root,
+    "--output",
     outputDirectory,
     "--max-chars",
     maxChars,

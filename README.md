@@ -7,7 +7,7 @@
 ## 使い方
 
 ```bash
-miku-text-bundle <inputDir> [outputDir] --max-chars 120000 --max-input-file-bytes 1000000 --encoding utf-8
+miku-text-bundle --input <dir> --output <dir>
 ```
 
 ヘルプとバージョンを確認できます。
@@ -20,43 +20,55 @@ miku-text-bundle --version
 ローカルでビルド済みの CLI を直接実行する場合は次のように使います。
 
 ```bash
-node dist/main.js . --max-chars 120000
+node dist/main.js --input . --output out --max-chars 120000
 ```
 
-`outputDir` を省略した場合は、入力ディレクトリ配下の次の場所に出力します。
-
-```text
-workplace/miku-text-bundle/<yyyyMMddHHmm>/
-```
-
-同じ分に既に同名の出力ディレクトリがある場合は、末尾に `-1`, `-2` のような連番 suffix を付けます。
+`--input` と `--output` は必須です。出力先の自動生成は行いません。
 
 CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/igapyon/items/c67f37ffe4d0fd1eed9d) を参照してください。
 
+`v0.5.4` から `v0.8.0` への変更点は [docs/release-notes-v0.8.0.md](docs/release-notes-v0.8.0.md) を参照してください。
+
 ## 主なオプション
 
-- `--input-directory <dir>`: 入力ディレクトリを名前付きで指定する。
-- `--output-directory <dir>`: 出力ディレクトリを名前付きで指定する。
+- `--input <dir>`: 入力ディレクトリを指定する。
+- `--output <dir>`: 出力ディレクトリを指定する。
 - `--max-chars <number>`: バンドル Part ごとの最大文字数を指定する。デフォルトは `120000`。
 - `--max-input-file-bytes <number>`: 単一入力ファイルの最大読み込み bytes を指定する。デフォルトは `1000000`。
 - `--encoding utf-8|shift_jis`: 入力ファイルのデフォルト文字コードを指定する。デフォルトは `utf-8`。
 - `--encoding-extension ".java=shift_jis"`: 拡張子ごとの文字コードを指定する。カンマ区切りで複数指定できます。
-- `--include "glob"`: 追加で収集するファイルパターンを指定する。カンマ区切りで複数指定できます。
-- `--exclude "glob"`: 収集対象から除外するファイルパターンを指定する。カンマ区切りで複数指定できます。
-- `--verbose`: 収集数、スキップ数、Part 数を標準出力に表示する。
-- `--help`, `-h`: ヘルプを表示する。
-- `--version`, `-v`: バージョンを表示する。
+- `--add-exclude-extension ".ext"`: 除外拡張子リストに拡張子を追加する。カンマ区切りで複数指定できます。
+- `--remove-exclude-extension ".ext"`: 除外拡張子リストから拡張子を削除する。カンマ区切りで複数指定できます。
+- `--add-exclude-directory "dir"`: 除外ディレクトリリストにディレクトリを追加する。カンマ区切りで複数指定できます。
+- `--remove-exclude-directory "dir"`: 除外ディレクトリリストからディレクトリを削除する。カンマ区切りで複数指定できます。
+- `--verbose`: 収集数、スキップ数、Part 数、無視したファイルの内訳を標準出力に表示する。
+- `--help`: ヘルプを表示する。
+- `--version`: バージョンを表示する。
+
+通常実行では、完了時に収集数、スキップ数、無視したディレクトリ数、無視したファイル数を表示します。
+
+```text
+completed: 3 part(s), 128 file(s) collected, 4 file(s) skipped, 12 directories ignored, 245 file(s) ignored
+```
+
+`--verbose` を指定すると、無視したファイル数の内訳も表示します。
+
+```text
+ignoredDirectories=12
+ignoredFiles=245
+ignoredByDirectory=23
+ignoredByExtension=180
+ignoredByGitignore=42
+ignoredByOutputDirectory=0
+```
 
 ## デフォルト収集範囲
 
-デフォルトでは、入力ディレクトリをリポジトリルートとして扱い、次のファイルを収集します。
+デフォルトでは、入力ディレクトリ配下の通常ファイルを広く収集候補にします。既知のバイナリ拡張子、除外ディレクトリ、`.gitignore` で除外されたファイル、出力ディレクトリ配下のファイルは候補から外します。
 
-- `README.md`
-- `TODO.md`
-- `src/`, `lib/`, `app/`, `test/`, `tests/` 配下のソースファイル
-- 対象拡張子: `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.java`, `.cs`
+既知のバイナリ拡張子に一致したファイルと、除外ディレクトリ配下のファイルは、`text-bundle-000-index.md` の Skipped Files には記録しません。候補に残ったファイルがサイズ上限を超えた場合や、指定文字コードで読めない場合は Skipped Files に理由を記録します。
 
-`--include` を使うと、Markdown や設定ファイルなどを追加で収集できます。ただし、`.gitignore` で除外されたファイルや、リポジトリルート直下のドットフォルダ配下のファイルは、`--include` でも収集対象に戻せません。
+このツールでは、最初から候補にしないものを ignored、候補に入ったが読み込めなかったものを skipped として扱います。
 
 ## 除外ルール
 
@@ -64,7 +76,41 @@ CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/i
 
 現在の `.gitignore` 判定は、このツールが必要とする範囲に絞った実装です。Git 本体の ignore 仕様と完全互換ではありません。詳細は [docs/gitignore-limitations.md](docs/gitignore-limitations.md) を参照してください。
 
-リポジトリルート直下のドットフォルダは、`.gitignore` の内容に関係なく収集対象外です。たとえば `.git/`, `.vscode/`, `.codex/` などは収集しません。
+デフォルト除外ディレクトリは次の通りです。
+
+```text
+.codex
+.git
+.idea
+.vscode
+build
+coverage
+dist
+node_modules
+target
+temp
+tmp
+workplace
+```
+
+デフォルト除外拡張子は次の通りです。
+
+```text
+.7z .aac .avi .bmp .bz2 .class .db .dll .doc .docx .dylib .exe
+.flac .gif .gz .ico .jar .jpeg .jpg .m4a .mkv .mov .mp3 .mp4
+.ogg .otf .parquet .pdf .png .ppt .pptx .rar .so .sqlite .svgz
+.tar .tgz .tiff .ttf .war .wav .webm .webp .woff .woff2 .xls
+.xlsx .xz .zip
+```
+
+除外リストは CLI オプションで調整できます。
+
+```bash
+miku-text-bundle --input . --output out --add-exclude-extension ".wasm,.bin"
+miku-text-bundle --input . --output out --remove-exclude-extension ".pdf"
+miku-text-bundle --input . --output out --add-exclude-directory "generated"
+miku-text-bundle --input . --output out --remove-exclude-directory "dist"
+```
 
 ## 入力ファイルの扱い
 
@@ -73,7 +119,7 @@ CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/i
 拡張子ごとに文字コードを変える場合は、`--encoding-extension` を使います。拡張子ルールはデフォルト文字コードより優先されます。
 
 ```bash
-miku-text-bundle . --encoding utf-8 --encoding-extension ".java=shift_jis,.properties=shift_jis"
+miku-text-bundle --input . --output out --encoding utf-8 --encoding-extension ".java=shift_jis,.properties=shift_jis"
 ```
 
 対応する文字コードは `utf-8` と `shift_jis` です。文字コードの自動判定は行いません。指定された文字コードとして読めないファイル、またはバイナリと判定したファイルはスキップし、`text-bundle-000-index.md` に理由を記録します。
@@ -120,10 +166,10 @@ npm run build
 npm audit --audit-level=moderate
 ```
 
-実リポジトリ入力で確認する場合は、次のコマンドで生成物を作成し、`workplace/miku-text-bundle/<yyyyMMddHHmm>/` を確認します。
+実リポジトリ入力で確認する場合は、次のコマンドで生成物を作成し、`out/` を確認します。
 
 ```bash
-node dist/main.js . --max-chars 5000
+node dist/main.js --input . --output out --max-chars 5000
 ```
 
 ## Release assets

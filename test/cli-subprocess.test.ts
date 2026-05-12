@@ -43,9 +43,12 @@ describe("CLI subprocess", () => {
     writeFile(join(root, "README.md"), "# README\n");
     writeFile(join(root, "src", "main.ts"), "const value = 1;\n");
 
-    const stdout = runCli([root, output, "--max-chars", "120000"]);
+    const stdout = runCli(["--input", root, "--output", output, "--max-chars", "120000"]);
 
     expect(stdout).toContain("completed:");
+    expect(stdout).toContain("file(s) skipped");
+    expect(stdout).toContain("directories ignored");
+    expect(stdout).toContain("file(s) ignored");
     expect(readOutputFile(output, indexFileName)).toContain("src/main.ts");
     expect(readOutputFile(output, firstPartFileName)).toContain("### src/main.ts");
     expect(readOutputFile(output, promptFileName)).toContain("text-bundle-response.md");
@@ -64,7 +67,7 @@ describe("CLI subprocess", () => {
     writeFile(join(root, "README.md"), "# README\n");
     writeFile(join(root, "docs", "huge.md"), "x".repeat(101));
 
-    const stdout = runCli([root, output, "--include", "docs/**/*.md", "--max-input-file-bytes", "100"]);
+    const stdout = runCli(["--input", root, "--output", output, "--max-input-file-bytes", "100"]);
 
     const index = readOutputFile(output, indexFileName);
     const part = readOutputFile(output, firstPartFileName);
@@ -76,7 +79,7 @@ describe("CLI subprocess", () => {
 
   it("returns a non-zero exit code for an invalid input directory", () => {
     const root = makeTempRepo();
-    const result = spawnSync(process.execPath, ["dist/main.js", join(root, "missing")], {
+    const result = spawnSync(process.execPath, ["dist/main.js", "--input", join(root, "missing"), "--output", join(root, "out")], {
       encoding: "utf8",
     });
 
@@ -87,7 +90,7 @@ describe("CLI subprocess", () => {
 
   it("returns a non-zero exit code for unknown options", () => {
     const root = makeTempRepo();
-    const result = spawnSync(process.execPath, ["dist/main.js", root, "--unknown"], {
+    const result = spawnSync(process.execPath, ["dist/main.js", "--input", root, "--output", join(root, "out"), "--unknown"], {
       encoding: "utf8",
     });
 
