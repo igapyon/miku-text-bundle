@@ -1,14 +1,16 @@
-import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { dirname, extname, join, relative, resolve } from "node:path";
+import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { extname, join, relative, resolve } from "node:path";
 import { TextDecoder } from "node:util";
+import { discoverCandidateFiles } from "./discovery.js";
 import { buildIndexMarkdown, buildPartMarkdown, buildPromptMarkdown } from "./markdown.js";
-import { matchesAnyPattern, matchesGitignore, parseGitignore } from "./match.js";
+import { parseGitignore } from "./match.js";
 import { getExtension, toPosixPath } from "./path-utils.js";
-import type { BundleChunk, BundlePart, BundleResult, CliOptions, CollectedFile, Marker, SkippedFile, SupportedEncoding } from "./types.js";
+import type { BundleChunk, BundlePart, BundleResult, CliOptions, CollectedFile, IgnoreStats, Marker, SkippedFile, SupportedEncoding } from "./types.js";
 
 type CollectedFilesResult = {
   files: CollectedFile[];
   skipped: SkippedFile[];
+  ignored: IgnoreStats;
 };
 
 type BundleChunksResult = {
@@ -37,9 +39,6 @@ type BundleMarkdownPaths = {
   partPaths: string[];
 };
 
-const DEFAULT_SOURCE_DIRECTORIES = ["src", "lib", "app", "test", "tests"];
-const DEFAULT_SOURCE_EXTENSIONS = new Set(["ts", "tsx", "js", "jsx", "mjs", "cjs", "java", "cs"]);
-const DEFAULT_ROOT_FILES = ["README.md", "TODO.md"];
 const INDEX_FILE_NAME = "text-bundle-000-index.md";
 const PROMPT_FILE_NAME = "text-bundle-000-prompt.md";
 const DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
@@ -48,50 +47,12 @@ const DEFAULT_ENCODING_OPTIONS = {
   extensions: {} as Record<string, SupportedEncoding>,
 } satisfies NonNullable<CliOptions["encoding"]>;
 
-function formatTimestamp(date: Date): string {
-  const pad = (value: number): string => String(value).padStart(2, "0");
-  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}`;
-}
-
-export function defaultOutputBase(inputDirectory: string, now = new Date()): string {
-  return join(resolve(inputDirectory), "workplace", "miku-text-bundle", formatTimestamp(now));
-}
-
-export function chooseOutputDirectory(inputDirectory: string, explicitOutputDirectory?: string, now = new Date()): string {
-  if (explicitOutputDirectory) {
-    return resolve(explicitOutputDirectory);
-  }
-
-  const basePath = defaultOutputBase(inputDirectory, now);
-  if (!statSync(basePath, { throwIfNoEntry: false })) {
-    return basePath;
-  }
-
-  for (let suffix = 1; suffix < 10000; suffix += 1) {
-    const candidate = `${basePath}-${suffix}`;
-    if (!statSync(candidate, { throwIfNoEntry: false })) {
-      return candidate;
-    }
-  }
-
-  throw new Error(`Could not choose a unique output directory under ${dirname(basePath)}.`);
-}
-
-function isRootDotDirectory(relativePath: string): boolean {
-  const firstSegment = toPosixPath(relativePath).split("/")[0] ?? "";
-  return firstSegment.startsWith(".") && firstSegment.length > 1;
+export function chooseOutputDirectory(outputDirectory: string): string {
+  return resolve(outputDirectory);
 }
 
 function relativeInputPath(inputPath: string, filePath: string): string {
   return toPosixPath(relative(inputPath, filePath));
-}
-
-function isDefaultSourceFile(filePath: string): boolean {
-  return DEFAULT_SOURCE_EXTENSIONS.has(getExtension(filePath));
-}
-
-function isHardExcluded(relativePath: string, gitignorePatterns: string[]): boolean {
-  return isRootDotDirectory(relativePath) || matchesGitignore(relativePath, gitignorePatterns);
 }
 
 function readRootGitignore(inputPath: string): string[] {
@@ -100,84 +61,6 @@ function readRootGitignore(inputPath: string): string[] {
     return [];
   }
   return parseGitignore(readFileSync(gitignorePath, "utf8"));
-}
-
-function listFilesRecursively(rootPath: string, startPath: string): string[] {
-  const files: string[] = [];
-  const entries = readdirSync(startPath, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, "ja"));
-
-  for (const entry of entries) {
-    const fullPath = join(startPath, entry.name);
-    const relativePath = relativeInputPath(rootPath, fullPath);
-
-    if (isRootDotDirectory(relativePath)) {
-      continue;
-    }
-
-    if (entry.isDirectory()) {
-      files.push(...listFilesRecursively(rootPath, fullPath));
-      continue;
-    }
-
-    if (entry.isFile()) {
-      files.push(fullPath);
-    }
-  }
-
-  return files;
-}
-
-function addRootFiles(candidates: Set<string>, inputPath: string): void {
-  for (const rootFile of DEFAULT_ROOT_FILES) {
-    const fullPath = join(inputPath, rootFile);
-    if (statSync(fullPath, { throwIfNoEntry: false })?.isFile()) {
-      candidates.add(fullPath);
-    }
-  }
-}
-
-function addDefaultSourceFiles(candidates: Set<string>, inputPath: string): void {
-  for (const sourceDir of DEFAULT_SOURCE_DIRECTORIES) {
-    const fullPath = join(inputPath, sourceDir);
-    if (!statSync(fullPath, { throwIfNoEntry: false })?.isDirectory()) {
-      continue;
-    }
-
-    for (const filePath of listFilesRecursively(inputPath, fullPath)) {
-      if (isDefaultSourceFile(filePath)) {
-        candidates.add(filePath);
-      }
-    }
-  }
-}
-
-function addIncludedFiles(candidates: Set<string>, inputPath: string, includePatterns: string[]): void {
-  if (includePatterns.length === 0) {
-    return;
-  }
-
-  for (const filePath of listFilesRecursively(inputPath, inputPath)) {
-    if (matchesAnyPattern(relativeInputPath(inputPath, filePath), includePatterns)) {
-      candidates.add(filePath);
-    }
-  }
-}
-
-function shouldCollectCandidate(inputPath: string, filePath: string, options: CliOptions, gitignorePatterns: string[]): boolean {
-  const relativePath = relativeInputPath(inputPath, filePath);
-  return !isHardExcluded(relativePath, gitignorePatterns) && !matchesAnyPattern(relativePath, options.excludePatterns);
-}
-
-function discoverCandidateFiles(inputPath: string, options: CliOptions, gitignorePatterns: string[]): string[] {
-  const candidates = new Set<string>();
-
-  addRootFiles(candidates, inputPath);
-  addDefaultSourceFiles(candidates, inputPath);
-  addIncludedFiles(candidates, inputPath, options.includePatterns);
-
-  return [...candidates]
-    .filter((filePath) => shouldCollectCandidate(inputPath, filePath, options, gitignorePatterns))
-    .sort((a, b) => relativeInputPath(inputPath, a).localeCompare(relativeInputPath(inputPath, b), "ja"));
 }
 
 function selectEncoding(relativePath: string, options: CliOptions): SupportedEncoding {
@@ -244,12 +127,13 @@ function createCollectedFile(filePath: string, relativePath: string, content: st
   };
 }
 
-function collectFiles(inputPath: string, options: CliOptions, gitignorePatterns: string[]): CollectedFilesResult {
+function collectFiles(inputPath: string, outputPath: string, options: CliOptions, gitignorePatterns: string[]): CollectedFilesResult {
   const files: CollectedFile[] = [];
   const skipped: SkippedFile[] = [];
   const maxInputFileBytes = options.maxInputFileBytes ?? DEFAULT_MAX_INPUT_FILE_BYTES;
+  const discovered = discoverCandidateFiles(inputPath, outputPath, options, gitignorePatterns);
 
-  for (const filePath of discoverCandidateFiles(inputPath, options, gitignorePatterns)) {
+  for (const filePath of discovered.files) {
     const relativePath = relativeInputPath(inputPath, filePath);
     const fileStat = statSync(filePath);
     if (fileStat.size > maxInputFileBytes) {
@@ -269,7 +153,7 @@ function collectFiles(inputPath: string, options: CliOptions, gitignorePatterns:
     files.push(createCollectedFile(filePath, relativePath, content));
   }
 
-  return { files, skipped };
+  return { files, skipped, ignored: discovered.ignored };
 }
 
 function createSingleFileChunk(file: CollectedFile): BundleChunk {
@@ -420,10 +304,16 @@ function writeBundleMarkdownFiles(params: BundleMarkdownWriteParams): BundleMark
   return { indexPath, promptPath, partPaths };
 }
 
-function printVerboseSummary(files: CollectedFile[], skipped: SkippedFile[], parts: BundlePart[]): void {
+function printVerboseSummary(files: CollectedFile[], skipped: SkippedFile[], parts: BundlePart[], ignored: IgnoreStats): void {
   console.log(`collected=${files.length}`);
   console.log(`skipped=${skipped.length}`);
   console.log(`parts=${parts.length}`);
+  console.log(`ignoredDirectories=${ignored.directories}`);
+  console.log(`ignoredFiles=${ignored.files}`);
+  console.log(`ignoredByDirectory=${ignored.byDirectory}`);
+  console.log(`ignoredByExtension=${ignored.byExtension}`);
+  console.log(`ignoredByGitignore=${ignored.byGitignore}`);
+  console.log(`ignoredByOutputDirectory=${ignored.byOutputDirectory}`);
 }
 
 function printGeneratedPaths(indexPath: string, partPaths: string[], promptPath: string): void {
@@ -435,6 +325,7 @@ function printGeneratedPaths(indexPath: string, partPaths: string[], promptPath:
 }
 
 export function createTextBundle(options: CliOptions, now = new Date()): BundleResult {
+  void now;
   const inputPath = resolve(options.inputDirectory);
   const inputStat = statSync(inputPath, { throwIfNoEntry: false });
 
@@ -442,11 +333,11 @@ export function createTextBundle(options: CliOptions, now = new Date()): BundleR
     throw new Error(`Input directory does not exist: ${inputPath}`);
   }
 
-  const outputDirectory = chooseOutputDirectory(inputPath, options.outputDirectory, now);
+  const outputDirectory = chooseOutputDirectory(options.outputDirectory);
   mkdirSync(outputDirectory, { recursive: true });
 
   const gitignorePatterns = readRootGitignore(inputPath);
-  const { files, skipped } = collectFiles(inputPath, options, gitignorePatterns);
+  const { files, skipped, ignored } = collectFiles(inputPath, outputDirectory, options, gitignorePatterns);
   const markers = files.flatMap((file) => file.markers);
   const { parts, warnings } = buildParts(files, options.maxChars);
 
@@ -461,7 +352,7 @@ export function createTextBundle(options: CliOptions, now = new Date()): BundleR
   });
 
   if (options.verbose) {
-    printVerboseSummary(files, skipped, parts);
+    printVerboseSummary(files, skipped, parts, ignored);
   }
 
   printGeneratedPaths(indexPath, partPaths, promptPath);
@@ -473,6 +364,12 @@ export function createTextBundle(options: CliOptions, now = new Date()): BundleR
     partPaths,
     filesCollected: files.length,
     filesSkipped: skipped.length,
+    directoriesIgnored: ignored.directories,
+    filesIgnored: ignored.files,
+    ignoredByDirectory: ignored.byDirectory,
+    ignoredByExtension: ignored.byExtension,
+    ignoredByGitignore: ignored.byGitignore,
+    ignoredByOutputDirectory: ignored.byOutputDirectory,
     partsGenerated: parts.length,
     warnings,
   };

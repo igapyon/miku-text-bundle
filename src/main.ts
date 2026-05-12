@@ -11,12 +11,23 @@ export type {
   CliOptions,
   CollectedFile,
   EncodingOptions,
+  IgnoreStats,
   Marker,
   SkippedFile,
   SupportedEncoding,
 } from "./types.js";
-export { CLI_VERSION, HelpRequestedError, parseArgs, printHelp, printVersion, VersionRequestedError } from "./cli.js";
-export { createTextBundle, chooseOutputDirectory, defaultOutputBase } from "./bundler.js";
+export {
+  CLI_VERSION,
+  DEFAULT_EXCLUDE_DIRECTORIES,
+  DEFAULT_EXCLUDE_EXTENSIONS,
+  HelpRequestedError,
+  parseArgs,
+  printHelp,
+  printVersion,
+  VersionRequestedError,
+} from "./cli.js";
+export { createTextBundle, chooseOutputDirectory } from "./bundler.js";
+export { discoverCandidateFiles } from "./discovery.js";
 export { buildIndexMarkdown, buildPartMarkdown, buildPromptMarkdown } from "./markdown.js";
 export { matchesAnyPattern, matchesGitignore, parseGitignore } from "./match.js";
 export { getExtension, normalizePattern, toPosixPath } from "./path-utils.js";
@@ -25,7 +36,7 @@ export function main(): void {
   try {
     const options = parseArgs(process.argv.slice(2));
     const result = createTextBundle(options);
-    console.log(`completed: ${result.partsGenerated} part(s), ${result.filesCollected} file(s) collected`);
+    console.log(`completed: ${result.partsGenerated} part(s), ${result.filesCollected} file(s) collected, ${result.filesSkipped} file(s) skipped, ${result.directoriesIgnored} directories ignored, ${result.filesIgnored} file(s) ignored`);
   } catch (error) {
     if (error instanceof HelpRequestedError) {
       printHelp();

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import iconv from "iconv-lite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { chooseOutputDirectory, createTextBundle, defaultOutputBase } from "../src/main.js";
+import { chooseOutputDirectory, createTextBundle } from "../src/main.js";
 import type { CliOptions } from "../src/main.js";
 
 const tempRoots: string[] = [];
@@ -23,13 +23,12 @@ function writeFile(path: string, content: string | Buffer): void {
 function bundleOptions(root: string, overrides: Partial<CliOptions> = {}): CliOptions {
   return {
     inputDirectory: root,
+    outputDirectory: join(root, "out"),
     maxChars: 120000,
     encoding: {
       default: "utf-8",
       extensions: {},
     },
-    includePatterns: [],
-    excludePatterns: [],
     verbose: false,
     ...overrides,
   };
@@ -43,13 +42,10 @@ afterEach(() => {
 });
 
 describe("output directory selection", () => {
-  it("uses local timestamp and suffixes collisions", () => {
+  it("uses the explicit output directory", () => {
     const root = makeTempRepo();
-    const now = new Date(2026, 4, 5, 12, 52);
-    const base = defaultOutputBase(root, now);
-    mkdirSync(base, { recursive: true });
 
-    expect(chooseOutputDirectory(root, undefined, now)).toBe(`${base}-1`);
+    expect(chooseOutputDirectory(join(root, "out"))).toBe(join(root, "out"));
   });
 });
 
@@ -59,13 +55,18 @@ describe("createTextBundle", () => {
     writeFile(join(root, "README.md"), "# README\n");
     writeFile(join(root, "TODO.md"), "- TODO root item\n");
     writeFile(join(root, "src", "main.ts"), "const value = 1;\n// FIXME check later\n");
-    writeFile(join(root, ".hidden", "secret.ts"), "const hidden = true;\n");
+    writeFile(join(root, ".git", "secret.ts"), "const hidden = true;\n");
     writeFile(join(root, ".gitignore"), "ignored.ts\n");
     writeFile(join(root, "src", "ignored.ts"), "const ignored = true;\n");
 
     const result = createTextBundle(bundleOptions(root), new Date(2026, 4, 5, 12, 52));
 
-    expect(result.filesCollected).toBe(3);
+    expect(result.filesCollected).toBe(4);
+    expect(result.filesIgnored).toBe(2);
+    expect(result.directoriesIgnored).toBe(2);
+    expect(result.ignoredByDirectory).toBe(1);
+    expect(result.ignoredByGitignore).toBe(1);
+    expect(result.ignoredByOutputDirectory).toBe(0);
     expect(result.partsGenerated).toBe(1);
 
     const index = readFileSync(result.indexPath, "utf8");
@@ -74,7 +75,8 @@ describe("createTextBundle", () => {
 
     expect(index).toContain("`src/main.ts`");
     expect(index).toContain("FIXME");
-    expect(index).not.toContain(".hidden");
+    expect(index).toContain("`.gitignore`");
+    expect(index).not.toContain(".git/secret.ts");
     expect(index).not.toContain("ignored.ts");
     expect(part).toContain("### src/main.ts");
     expect(part).toContain("```ts");
@@ -129,14 +131,13 @@ describe("createTextBundle", () => {
     expect(part).toContain("# 説明");
   });
 
-  it("skips explicitly included files that exceed the input file byte limit", () => {
+  it("skips text files that exceed the input file byte limit", () => {
     const root = makeTempRepo();
     writeFile(join(root, "README.md"), "# README\n");
     writeFile(join(root, "docs", "huge.md"), "x".repeat(101));
 
     const result = createTextBundle(bundleOptions(root, {
       maxInputFileBytes: 100,
-      includePatterns: ["docs/**/*.md"],
     }), new Date(2026, 4, 5, 12, 56));
 
     const index = readFileSync(result.indexPath, "utf8");
@@ -164,26 +165,66 @@ describe("createTextBundle", () => {
     expect(firstPart.indexOf("やむを得ず分割")).toBeLessThan(firstPart.indexOf("```ts"));
   });
 
-  it("honors explicit include and exclude patterns without bypassing hard exclusions", () => {
+  it("excludes known binary extensions before reading files", () => {
     const root = makeTempRepo();
     writeFile(join(root, "README.md"), "# README\n");
-    writeFile(join(root, "docs", "extra.md"), "# Extra\n");
-    writeFile(join(root, "docs", "skip.md"), "# Skip\n");
-    writeFile(join(root, ".secret", "extra.md"), "# Secret\n");
-    writeFile(join(root, ".gitignore"), "ignored.md\n");
-    writeFile(join(root, "docs", "ignored.md"), "# Ignored\n");
+    writeFile(join(root, "assets", "image.png"), Buffer.from([0, 1, 2, 3]));
+
+    const result = createTextBundle(bundleOptions(root), new Date(2026, 4, 5, 12, 55));
+
+    const index = readFileSync(result.indexPath, "utf8");
+    expect(index).toContain("`README.md`");
+    expect(index).not.toContain("assets/image.png");
+    expect(result.filesSkipped).toBe(0);
+    expect(result.filesIgnored).toBe(1);
+    expect(result.ignoredByExtension).toBe(1);
+  });
+
+  it("uses customized exclude extension and directory lists", () => {
+    const root = makeTempRepo();
+    writeFile(join(root, "README.md"), "# README\n");
+    writeFile(join(root, "assets", "document.pdf"), Buffer.from([0, 1, 2, 3]));
+    writeFile(join(root, "notes", "skip.md"), "# Skip\n");
+    writeFile(join(root, "dist", "generated.md"), "# Generated\n");
 
     const result = createTextBundle(bundleOptions(root, {
-      includePatterns: ["docs/**/*.md", ".secret/**/*.md"],
-      excludePatterns: ["docs/skip.md"],
+      excludeExtensions: [".png"],
+      excludeDirectories: ["notes"],
     }), new Date(2026, 4, 5, 12, 55));
 
     const index = readFileSync(result.indexPath, "utf8");
     expect(index).toContain("`README.md`");
-    expect(index).toContain("`docs/extra.md`");
-    expect(index).not.toContain("docs/skip.md");
-    expect(index).not.toContain("docs/ignored.md");
-    expect(index).not.toContain(".secret");
+    expect(index).toContain("`dist/generated.md`");
+    expect(index).toContain("`assets/document.pdf`");
+    expect(index).toContain("UTF-8");
+    expect(index).not.toContain("notes/skip.md");
+    expect(result.filesIgnored).toBe(1);
+    expect(result.directoriesIgnored).toBe(2);
+    expect(result.ignoredByDirectory).toBe(1);
+    expect(result.ignoredByOutputDirectory).toBe(0);
+  });
+
+  it("prints ignored count details in verbose mode", () => {
+    const root = makeTempRepo();
+    writeFile(join(root, "README.md"), "# README\n");
+    writeFile(join(root, "assets", "image.png"), Buffer.from([0, 1, 2, 3]));
+    writeFile(join(root, "dist", "generated.md"), "# Generated\n");
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    let output = "";
+
+    try {
+      createTextBundle(bundleOptions(root, { verbose: true }), new Date(2026, 4, 5, 12, 55));
+      output = logSpy.mock.calls.map((call) => call.join(" ")).join("\n");
+    } finally {
+      logSpy.mockRestore();
+    }
+
+    expect(output).toContain("ignoredDirectories=2");
+    expect(output).toContain("ignoredFiles=2");
+    expect(output).toContain("ignoredByDirectory=1");
+    expect(output).toContain("ignoredByExtension=1");
+    expect(output).toContain("ignoredByGitignore=0");
+    expect(output).toContain("ignoredByOutputDirectory=0");
   });
 
   it("writes the index Markdown sections in a stable order", () => {
