@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { HelpRequestedError, parseArgs, printHelp, printVersion, VersionRequestedError } from "./cli.js";
 import { createTextBundle } from "./bundler.js";
 
@@ -32,6 +33,18 @@ export { buildIndexMarkdown, buildPartMarkdown, buildPromptMarkdown } from "./ma
 export { matchesAnyPattern, matchesGitignore, parseGitignore } from "./match.js";
 export { getExtension, normalizePattern, toPosixPath } from "./path-utils.js";
 
+function isCliEntrypoint(metaUrl: string, argvPath: string | undefined): boolean {
+  if (!argvPath) {
+    return false;
+  }
+
+  try {
+    return realpathSync(fileURLToPath(metaUrl)) === realpathSync(argvPath);
+  } catch {
+    return false;
+  }
+}
+
 export function main(): void {
   try {
     const options = parseArgs(process.argv.slice(2));
@@ -55,6 +68,6 @@ export function main(): void {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isCliEntrypoint(import.meta.url, process.argv[1])) {
   main();
 }
