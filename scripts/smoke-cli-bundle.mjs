@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -13,6 +13,7 @@ const promptFileName = "text-bundle-000-prompt.md";
 const firstPartFileName = "text-bundle-001.md";
 const root = mkdtempSync(join(tmpdir(), "miku-text-bundle-bundle-smoke-"));
 const outputDirectory = join(root, "out");
+const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 
 function assertIncludes(content, expected, fileName) {
   if (!content.includes(expected)) {
@@ -59,6 +60,23 @@ function runBundleCli() {
   });
 }
 
+function assertSymlinkEntrypoint() {
+  const linkPath = join(root, "linked-miku-text-bundle.mjs");
+  symlinkSync(join(process.cwd(), bundlePath), linkPath);
+
+  const help = execFileSync(process.execPath, [linkPath, "--help"], {
+    encoding: "utf8",
+  });
+  assertIncludes(help, "Usage:", "symlink bundle help");
+
+  const version = execFileSync(process.execPath, [linkPath, "--version"], {
+    encoding: "utf8",
+  });
+  if (version !== `${packageJson.version}\n`) {
+    throw new Error(`symlink bundle version was ${JSON.stringify(version)}`);
+  }
+}
+
 function assertSmokeOutput() {
   const index = readFileSync(join(outputDirectory, indexFileName), "utf8");
   const prompt = readFileSync(join(outputDirectory, promptFileName), "utf8");
@@ -75,6 +93,7 @@ function assertSmokeOutput() {
 try {
   assertBundleArtifacts();
   writeSmokeInput();
+  assertSymlinkEntrypoint();
   runBundleCli();
   assertSmokeOutput();
 } finally {

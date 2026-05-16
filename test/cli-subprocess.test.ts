@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -59,6 +59,18 @@ describe("CLI subprocess", () => {
 
     expect(runCli(["--help"])).toContain("Usage:");
     expect(runCli(["--version"])).toBe(`${packageJson.version}\n`);
+  });
+
+  it("starts from a symlinked dist/main.js path", () => {
+    const root = makeTempRepo();
+    const linkPath = join(root, "linked-main.js");
+    symlinkSync(join(process.cwd(), "dist", "main.js"), linkPath);
+
+    const stdout = execFileSync(process.execPath, [linkPath, "--help"], {
+      encoding: "utf8",
+    });
+
+    expect(stdout).toContain("Usage:");
   });
 
   it("applies max input file bytes from the CLI", () => {
