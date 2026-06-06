@@ -39,8 +39,9 @@ type BundleMarkdownPaths = {
   partPaths: string[];
 };
 
-const INDEX_FILE_NAME = "text-bundle-000-index.md";
+const INDEX_FILE_NAME = "text-bundle-999-index.md";
 const PROMPT_FILE_NAME = "text-bundle-000-prompt.md";
+const MAX_BUNDLE_PART_NUMBER = 998;
 const DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
 const DEFAULT_ENCODING_OPTIONS = {
   default: "utf-8",
@@ -222,6 +223,10 @@ function splitOversizedFile(file: CollectedFile, maxChars: number): BundleChunk[
 }
 
 function createBundlePart(partNumber: number, chunks: BundleChunk[], charCount: number): BundlePart {
+  if (partNumber > MAX_BUNDLE_PART_NUMBER) {
+    throw new Error(`Part count exceeds ${MAX_BUNDLE_PART_NUMBER}; text-bundle-999-index.md is reserved for the final index.`);
+  }
+
   return {
     fileName: `text-bundle-${String(partNumber).padStart(3, "0")}.md`,
     partNumber,
@@ -316,12 +321,12 @@ function printVerboseSummary(files: CollectedFile[], skipped: SkippedFile[], par
   console.log(`ignoredByOutputDirectory=${ignored.byOutputDirectory}`);
 }
 
-function printGeneratedPaths(indexPath: string, partPaths: string[], promptPath: string): void {
-  console.log(`generated: ${indexPath}`);
+function printGeneratedPaths(promptPath: string, partPaths: string[], indexPath: string): void {
+  console.log(`generated: ${promptPath}`);
   for (const partPath of partPaths) {
     console.log(`generated: ${partPath}`);
   }
-  console.log(`generated: ${promptPath}`);
+  console.log(`generated: ${indexPath}`);
 }
 
 export function createTextBundle(options: CliOptions, now = new Date()): BundleResult {
@@ -355,7 +360,7 @@ export function createTextBundle(options: CliOptions, now = new Date()): BundleR
     printVerboseSummary(files, skipped, parts, ignored);
   }
 
-  printGeneratedPaths(indexPath, partPaths, promptPath);
+  printGeneratedPaths(promptPath, partPaths, indexPath);
 
   return {
     outputDirectory,

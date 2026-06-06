@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 const bundlePath = "bundle/miku-text-bundle.mjs";
 const sourceArchivePath = "bundle/miku-text-bundle-sources.tgz";
 const maxChars = "120000";
-const indexFileName = "text-bundle-000-index.md";
+const indexFileName = "text-bundle-999-index.md";
 const promptFileName = "text-bundle-000-prompt.md";
 const firstPartFileName = "text-bundle-001.md";
 const root = mkdtempSync(join(tmpdir(), "miku-text-bundle-bundle-smoke-"));
@@ -84,7 +84,7 @@ function assertSmokeOutput() {
 
   assertIncludes(index, "README.md", indexFileName);
   assertIncludes(index, "src/Legacy.java", indexFileName);
-  assertIncludes(prompt, "END_OF_TEXT_BUNDLE", promptFileName);
+  assertIncludes(prompt, "text-bundle-999-index.md", promptFileName);
   assertIncludes(part, "### README.md", firstPartFileName);
   assertIncludes(part, "### src/Legacy.java", firstPartFileName);
   assertIncludes(part, "こんにちは", firstPartFileName);

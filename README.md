@@ -27,6 +27,7 @@ node dist/main.js --input . --output out --max-chars 120000
 
 CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/igapyon/items/c67f37ffe4d0fd1eed9d) を参照してください。
 
+`v0.9.0` の変更点は [docs/release-notes-v0.9.0.md](docs/release-notes-v0.9.0.md) を参照してください。
 `v0.8.1` の変更点は [docs/release-notes-v0.8.1.md](docs/release-notes-v0.8.1.md) を参照してください。
 `v0.5.4` から `v0.8.0` への変更点は [docs/release-notes-v0.8.0.md](docs/release-notes-v0.8.0.md) を参照してください。
 
@@ -67,7 +68,7 @@ ignoredByOutputDirectory=0
 
 デフォルトでは、入力ディレクトリ配下の通常ファイルを広く収集候補にします。既知のバイナリ拡張子、除外ディレクトリ、`.gitignore` で除外されたファイル、出力ディレクトリ配下のファイルは候補から外します。
 
-既知のバイナリ拡張子に一致したファイルと、除外ディレクトリ配下のファイルは、`text-bundle-000-index.md` の Skipped Files には記録しません。候補に残ったファイルがサイズ上限を超えた場合や、指定文字コードで読めない場合は Skipped Files に理由を記録します。
+既知のバイナリ拡張子に一致したファイルと、除外ディレクトリ配下のファイルは、`text-bundle-999-index.md` の Skipped Files には記録しません。候補に残ったファイルがサイズ上限を超えた場合や、指定文字コードで読めない場合は Skipped Files に理由を記録します。
 
 このツールでは、最初から候補にしないものを ignored、候補に入ったが読み込めなかったものを skipped として扱います。
 
@@ -123,23 +124,25 @@ miku-text-bundle --input . --output out --remove-exclude-directory "dist"
 miku-text-bundle --input . --output out --encoding utf-8 --encoding-extension ".java=shift_jis,.properties=shift_jis"
 ```
 
-対応する文字コードは `utf-8` と `shift_jis` です。文字コードの自動判定は行いません。指定された文字コードとして読めないファイル、またはバイナリと判定したファイルはスキップし、`text-bundle-000-index.md` に理由を記録します。
+対応する文字コードは `utf-8` と `shift_jis` です。文字コードの自動判定は行いません。指定された文字コードとして読めないファイル、またはバイナリと判定したファイルはスキップし、`text-bundle-999-index.md` に理由を記録します。
 
-単一入力ファイルのデフォルト読み込み上限は `1000000` bytes です。上限を超えるファイルは読み込まずにスキップし、`text-bundle-000-index.md` に理由を記録します。上限は `--max-input-file-bytes` で変更できます。
+単一入力ファイルのデフォルト読み込み上限は `1000000` bytes です。上限を超えるファイルは読み込まずにスキップし、`text-bundle-999-index.md` に理由を記録します。上限は `--max-input-file-bytes` で変更できます。
 
 ## 出力ファイル
 
 出力先には次の Markdown ファイルを生成します。
 
-- `text-bundle-000-index.md`
-- `text-bundle-001.md`, `text-bundle-002.md` 以降の分割 Markdown ファイル
 - `text-bundle-000-prompt.md`
+- `text-bundle-001.md`, `text-bundle-002.md` 以降の分割 Markdown ファイル
+- `text-bundle-999-index.md`
 
-`text-bundle-000-index.md` には、出力概要、Part 一覧、スキップされたファイル、警告、抽出した `TODO` / `FIXME` / `XXX` マーカーを記録します。
+`text-bundle-999-index.md` には、出力概要、Part 一覧、スキップされたファイル、警告、抽出した `TODO` / `FIXME` / `XXX` マーカーを記録します。
 
 `text-bundle-*.md` には、収集したファイルを `### path/to/file.ts` のような見出しで区切り、本文を backtick code fence で記録します。
 
-`text-bundle-000-prompt.md` には、複数メッセージで生成AIへ貼り付けるための順序、受領手順、完了合図 `END_OF_TEXT_BUNDLE`、回答ファイル名 `text-bundle-response.md`、回答形式を記録します。
+`text-bundle-000-prompt.md` には、複数メッセージで生成AIへ貼り付けるための順序、受領手順、終端ファイル `text-bundle-999-index.md`、回答ファイル名 `text-bundle-response.md`、回答形式を記録します。
+
+読み込み順は `text-bundle-000-prompt.md`、分割 Markdown ファイル、`text-bundle-999-index.md` です。`text-bundle-999-index.md` は最後に読む索引用の予約名であり、このファイルを受け取った時点で Text Bundle の読み込み完了とします。そのため、分割 Markdown ファイルは `text-bundle-001.md` から `text-bundle-998.md` までを上限とします。
 
 ## 分割方針
 

@@ -5,7 +5,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
 
 const tempRoots: string[] = [];
-const indexFileName = "text-bundle-000-index.md";
+const indexFileName = "text-bundle-999-index.md";
 const promptFileName = "text-bundle-000-prompt.md";
 const firstPartFileName = "text-bundle-001.md";
 

@@ -80,7 +80,7 @@ describe("createTextBundle", () => {
     expect(index).not.toContain("ignored.ts");
     expect(part).toContain("### src/main.ts");
     expect(part).toContain("```ts");
-    expect(prompt).toContain("text-bundle-000-index.md");
+    expect(prompt).toContain("text-bundle-999-index.md");
     expect(prompt).toContain("text-bundle-response.md");
   });
 
@@ -268,10 +268,11 @@ describe("createTextBundle", () => {
     const prompt = readFileSync(result.promptPath, "utf8");
     expect(prompt).toContain("# Text Bundle Prompt\n");
     expect(prompt).toContain("## 読み込み順");
-    expect(prompt).toContain("1. `text-bundle-000-index.md`");
+    expect(prompt).toContain("1. `text-bundle-000-prompt.md`");
     expect(prompt).toContain("2. `text-bundle-001.md`");
+    expect(prompt).toContain("3. `text-bundle-999-index.md`");
     expect(prompt).toContain("`受領しました`");
-    expect(prompt).toContain("`END_OF_TEXT_BUNDLE`");
+    expect(prompt).not.toContain("`END_OF_TEXT_BUNDLE`");
     expect(prompt).toContain("## 回答ファイル");
     expect(prompt).toContain("`text-bundle-response.md`");
     expect(prompt).toContain("## 出力形式");
@@ -291,5 +292,16 @@ describe("createTextBundle", () => {
     expect(part).toContain("- Source characters: 17");
     expect(part).toContain("- Source lines: 2");
     expect(part).toContain("```ts\nconst value = 1;\n\n```");
+  });
+
+  it("reserves text-bundle-999-index.md for the final index", () => {
+    const root = makeTempRepo();
+    for (let index = 1; index <= 999; index += 1) {
+      writeFile(join(root, "src", `file-${String(index).padStart(3, "0")}.txt`), "x");
+    }
+
+    expect(() => createTextBundle(bundleOptions(root, {
+      maxChars: 1,
+    }), new Date(2026, 4, 5, 13, 1))).toThrow("text-bundle-999-index.md is reserved");
   });
 });

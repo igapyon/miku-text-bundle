@@ -117,18 +117,18 @@ const value = 1;
 
 各メッセージを受け取ったら、内容の分析や要約はまだ行わず、\`受領しました\` とだけ返してください。
 
-\`END_OF_TEXT_BUNDLE\` という完了合図を受け取るまで、最終回答を開始しないでください。
+\`text-bundle-999-index.md\` を受け取るまで、最終回答を開始しないでください。
 
 ## 読み込み順
 
-1. \`text-bundle-000-index.md\`
+1. \`text-bundle-000-prompt.md\`
 2. \`text-bundle-001.md\`
 3. \`text-bundle-002.md\`
-4. \`END_OF_TEXT_BUNDLE\`
+4. \`text-bundle-999-index.md\`
 
 ## 回答ファイル
 
-\`END_OF_TEXT_BUNDLE\` の後に作成する回答は \`text-bundle-response.md\` として保存する想定です。
+\`text-bundle-999-index.md\` の後に作成する回答は \`text-bundle-response.md\` として保存する想定です。
 
 ## 出力形式
 
