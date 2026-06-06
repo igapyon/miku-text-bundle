@@ -144,6 +144,8 @@ miku-text-bundle --input . --output out --encoding utf-8 --encoding-extension ".
 
 読み込み順は `text-bundle-000-prompt.md`、分割 Markdown ファイル、`text-bundle-999-index.md` です。`text-bundle-999-index.md` は最後に読む索引用の予約名であり、このファイルを受け取った時点で Text Bundle の読み込み完了とします。そのため、分割 Markdown ファイルは `text-bundle-001.md` から `text-bundle-998.md` までを上限とします。
 
+バンドル内の入力ファイル順は、`/` 区切りに正規化した POSIX 相対パスの UTF-16 code unit 昇順です。ロケール照合や numeric sort は使いません。
+
 ## 分割方針
 
 基本的には、ファイル途中では分割せず、ファイル単位で Part に割り当てます。

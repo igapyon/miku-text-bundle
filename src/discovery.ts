@@ -2,7 +2,7 @@ import { readdirSync } from "node:fs";
 import { extname, join, relative } from "node:path";
 import { DEFAULT_EXCLUDE_DIRECTORIES, DEFAULT_EXCLUDE_EXTENSIONS } from "./cli.js";
 import { matchesGitignore } from "./match.js";
-import { toPosixPath } from "./path-utils.js";
+import { compareUtf16CodeUnits, toPosixPath } from "./path-utils.js";
 import type { CliOptions, IgnoreStats } from "./types.js";
 
 export type DiscoveryResult = {
@@ -107,7 +107,7 @@ function ignoreDirectory(fullPath: string, ignored: IgnoreStats, reason: "byDire
 
 function listFilesRecursively(rootPath: string, startPath: string, outputPath: string, excludeDirectories: Set<string>, ignored: IgnoreStats): string[] {
   const files: string[] = [];
-  const entries = readdirSync(startPath, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, "ja"));
+  const entries = readdirSync(startPath, { withFileTypes: true }).sort((a, b) => compareUtf16CodeUnits(a.name, b.name));
 
   for (const entry of entries) {
     const fullPath = join(startPath, entry.name);
@@ -166,7 +166,7 @@ export function discoverCandidateFiles(inputPath: string, outputPath: string, op
   return {
     files: candidates
       .filter((filePath) => shouldCollectCandidate(inputPath, outputPath, filePath, gitignorePatterns, excludeExtensions, ignored))
-      .sort((a, b) => relativeDiscoveryPath(inputPath, a).localeCompare(relativeDiscoveryPath(inputPath, b), "ja")),
+      .sort((a, b) => compareUtf16CodeUnits(relativeDiscoveryPath(inputPath, a), relativeDiscoveryPath(inputPath, b))),
     ignored,
   };
 }

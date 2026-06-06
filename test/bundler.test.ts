@@ -247,6 +247,27 @@ describe("createTextBundle", () => {
     expect(index).toContain("| File | Line | Kind | Text |");
   });
 
+  it("orders bundle files by POSIX relative path UTF-16 code units", () => {
+    const root = makeTempRepo();
+    writeFile(join(root, "file-2.txt"), "two\n");
+    writeFile(join(root, "file-10.txt"), "ten\n");
+    writeFile(join(root, "A.txt"), "upper\n");
+    writeFile(join(root, "b.txt"), "lower\n");
+    writeFile(join(root, "あ.txt"), "hiragana\n");
+
+    const result = createTextBundle(bundleOptions(root), new Date(2026, 4, 5, 13, 2));
+
+    const part = readFileSync(result.partPaths[0]!, "utf8");
+    const headings = part.match(/^### .+$/gm) ?? [];
+    expect(headings).toEqual([
+      "### A.txt",
+      "### b.txt",
+      "### file-10.txt",
+      "### file-2.txt",
+      "### あ.txt",
+    ]);
+  });
+
   it("does not extract markers from filename references", () => {
     const root = makeTempRepo();
     writeFile(join(root, "README.md"), "See TODO.md for project tasks.\nTODO: actionable item\n");
