@@ -31,7 +31,7 @@ export { createTextBundle, chooseOutputDirectory } from "./bundler.js";
 export { discoverCandidateFiles } from "./discovery.js";
 export { buildIndexMarkdown, buildPartMarkdown, buildPromptMarkdown } from "./markdown.js";
 export { matchesAnyPattern, matchesGitignore, parseGitignore } from "./match.js";
-export { getExtension, normalizePattern, toPosixPath } from "./path-utils.js";
+export { compareUtf16CodeUnits, getExtension, normalizePattern, toPosixPath } from "./path-utils.js";
 
 function isCliEntrypoint(metaUrl: string, argvPath: string | undefined): boolean {
   if (!argvPath) {

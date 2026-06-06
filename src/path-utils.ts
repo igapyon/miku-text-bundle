@@ -11,3 +11,15 @@ export function getExtension(pathValue: string): string {
 export function normalizePattern(pattern: string): string {
   return toPosixPath(pattern.trim()).replace(/^\.\//, "");
 }
+
+export function compareUtf16CodeUnits(left: string, right: string): number {
+  if (left < right) {
+    return -1;
+  }
+
+  if (left > right) {
+    return 1;
+  }
+
+  return 0;
+}

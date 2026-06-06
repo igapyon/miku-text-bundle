@@ -1,5 +1,5 @@
 import type { CliOptions, EncodingOptions, SupportedEncoding } from "./types.js";
-import { normalizePattern } from "./path-utils.js";
+import { compareUtf16CodeUnits, normalizePattern } from "./path-utils.js";
 
 const CLI_DEFAULT_MAX_CHARS = 120000;
 const CLI_DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
@@ -296,8 +296,8 @@ export function parseArgs(argv: string[]): CliOptions {
     maxChars: state.maxChars,
     maxInputFileBytes: state.maxInputFileBytes,
     encoding: state.encoding,
-    excludeExtensions: [...state.excludeExtensions].sort((a, b) => a.localeCompare(b, "ja")),
-    excludeDirectories: [...state.excludeDirectories].sort((a, b) => a.localeCompare(b, "ja")),
+    excludeExtensions: [...state.excludeExtensions].sort(compareUtf16CodeUnits),
+    excludeDirectories: [...state.excludeDirectories].sort(compareUtf16CodeUnits),
     verbose: state.verbose,
   };
 }
