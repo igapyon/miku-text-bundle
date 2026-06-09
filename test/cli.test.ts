@@ -7,6 +7,7 @@ describe("parseArgs", () => {
     expect(parseArgs(["--input", ".", "--output", "out", "--max-chars", "1000", "--max-input-file-bytes", "2000", "--verbose"])).toMatchObject({
       inputDirectory: ".",
       outputDirectory: "out",
+      filenamePrefix: "text-bundle",
       maxChars: 1000,
       maxInputFileBytes: 2000,
       encoding: {
@@ -21,6 +22,7 @@ describe("parseArgs", () => {
     expect(parseArgs(["--input", ".", "--output", "out"])).toMatchObject({
       inputDirectory: ".",
       outputDirectory: "out",
+      filenamePrefix: "text-bundle",
       maxChars: 120000,
       maxInputFileBytes: 1000000,
       encoding: {
@@ -68,6 +70,22 @@ describe("parseArgs", () => {
     });
   });
 
+  it("parses filename prefix", () => {
+    expect(parseArgs(["--input", ".", "--output", "out", "--filename-prefix", "igapyon-skill-compactor-text-bundle"])).toMatchObject({
+      filenamePrefix: "igapyon-skill-compactor-text-bundle",
+    });
+    expect(parseArgs(["--input", ".", "--output", "out", "--filename-prefix", "  repo.bundle_1  "])).toMatchObject({
+      filenamePrefix: "repo.bundle_1",
+    });
+  });
+
+  it("rejects invalid filename prefix values", () => {
+    expect(() => parseArgs(["--input", ".", "--output", "out", "--filename-prefix", "   "])).toThrow("--filename-prefix must not be empty");
+    expect(() => parseArgs(["--input", ".", "--output", "out", "--filename-prefix", "bad/name"])).toThrow("--filename-prefix must contain only");
+    expect(() => parseArgs(["--input", ".", "--output", "out", "--filename-prefix", "bad\\name"])).toThrow("--filename-prefix must contain only");
+    expect(() => parseArgs(["--input", ".", "--output", "out", "--filename-prefix", "bad\nname"])).toThrow("--filename-prefix must contain only");
+  });
+
   it("rejects unsupported encoding options", () => {
     expect(() => parseArgs(["--input", ".", "--output", "out", "--encoding", "latin1"])).toThrow("--encoding must be one of");
     expect(() => parseArgs(["--input", ".", "--output", "out", "--encoding-extension", "java=shift_jis"])).toThrow("leading dot");
@@ -104,7 +122,15 @@ describe("printHelp", () => {
     }
 
     expect(output).toContain("miku-text-bundle --input <dir> --output <dir>");
+    expect(output).toContain("Default behavior:");
+    expect(output).toContain("--filename-prefix text-bundle");
+    expect(output).toContain("Generated artifacts:");
+    expect(output).toContain("<prefix>-999-index.md");
+    expect(output).toContain("Output and overwrite behavior:");
+    expect(output).toContain("stdout is progress/completion text");
+    expect(output).toContain("Exit code 0 means success/help/version");
     expect(output).toContain("--max-chars");
+    expect(output).toContain("--filename-prefix");
     expect(output).toContain("--max-input-file-bytes");
     expect(output).toContain("--encoding");
     expect(output).toContain("--encoding-extension");

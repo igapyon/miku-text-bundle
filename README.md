@@ -10,6 +10,12 @@
 miku-text-bundle --input <dir> --output <dir>
 ```
 
+出力ファイル名の prefix を変えたい場合は `--filename-prefix` を指定できます。
+
+```bash
+miku-text-bundle --input skills/igapyon-skill-compactor --output workplace/text-bundle-dist --filename-prefix igapyon-skill-compactor-text-bundle
+```
+
 ヘルプとバージョンを確認できます。
 
 ```bash
@@ -27,6 +33,7 @@ node dist/main.js --input . --output out --max-chars 120000
 
 CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/igapyon/items/c67f37ffe4d0fd1eed9d) を参照してください。
 
+`v1.0.0` の変更点は [docs/release-notes-v1.0.0.md](docs/release-notes-v1.0.0.md) を参照してください。
 `v0.9.0` の変更点は [docs/release-notes-v0.9.0.md](docs/release-notes-v0.9.0.md) を参照してください。
 `v0.8.1` の変更点は [docs/release-notes-v0.8.1.md](docs/release-notes-v0.8.1.md) を参照してください。
 `v0.5.4` から `v0.8.0` への変更点は [docs/release-notes-v0.8.0.md](docs/release-notes-v0.8.0.md) を参照してください。
@@ -35,6 +42,7 @@ CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/i
 
 - `--input <dir>`: 入力ディレクトリを指定する。
 - `--output <dir>`: 出力ディレクトリを指定する。
+- `--filename-prefix <prefix>`: 生成する Markdown ファイル名の prefix を指定する。デフォルトは `text-bundle`。
 - `--max-chars <number>`: バンドル Part ごとの最大文字数を指定する。デフォルトは `120000`。
 - `--max-input-file-bytes <number>`: 単一入力ファイルの最大読み込み bytes を指定する。デフォルトは `1000000`。
 - `--encoding utf-8|shift_jis`: 入力ファイルのデフォルト文字コードを指定する。デフォルトは `utf-8`。
@@ -63,6 +71,8 @@ ignoredByExtension=180
 ignoredByGitignore=42
 ignoredByOutputDirectory=0
 ```
+
+`--help` は生成AI agent やスクリプトが安全に実行判断できる短い runtime contract として、入力、既定値、生成物、上書き、診断、exit code を表示します。通常実行の標準出力は進捗・完了テキストであり、安定した machine-readable API ではありません。安定した受け渡し成果物は、出力ディレクトリに生成される Markdown ファイルです。
 
 ## デフォルト収集範囲
 
@@ -135,6 +145,10 @@ miku-text-bundle --input . --output out --encoding utf-8 --encoding-extension ".
 - `text-bundle-000-prompt.md`
 - `text-bundle-001.md`, `text-bundle-002.md` 以降の分割 Markdown ファイル
 - `text-bundle-999-index.md`
+
+`--filename-prefix <prefix>` を指定すると、`text-bundle` の部分を指定した prefix に置き換えます。たとえば `--filename-prefix igapyon-skill-compactor-text-bundle` の場合は、`igapyon-skill-compactor-text-bundle-000-prompt.md`、`igapyon-skill-compactor-text-bundle-001.md`、`igapyon-skill-compactor-text-bundle-999-index.md` を生成します。
+
+prefix は前後の空白を除去したうえで、`A-Z`、`a-z`、`0-9`、`.`、`_`、`-` のみを許可します。空文字、パス区切り、改行、制御文字、日本語などを含む値はエラーになります。
 
 `text-bundle-999-index.md` には、出力概要、Part 一覧、スキップされたファイル、警告、抽出した `TODO` / `FIXME` / `XXX` マーカーを記録します。
 

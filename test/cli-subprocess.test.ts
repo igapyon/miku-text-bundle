@@ -89,6 +89,26 @@ describe("CLI subprocess", () => {
     expect(part).not.toContain("docs/huge.md");
   });
 
+  it("applies filename prefix from the CLI", () => {
+    const root = makeTempRepo();
+    const output = join(root, "out");
+    writeFile(join(root, "README.md"), "# README\n");
+
+    const stdout = runCli([
+      "--input",
+      root,
+      "--output",
+      output,
+      "--filename-prefix",
+      "sample-repo-text-bundle",
+    ]);
+
+    expect(stdout).toContain("sample-repo-text-bundle-000-prompt.md");
+    expect(readOutputFile(output, "sample-repo-text-bundle-000-prompt.md")).toContain("sample-repo-text-bundle-999-index.md");
+    expect(readOutputFile(output, "sample-repo-text-bundle-001.md")).toContain("### README.md");
+    expect(readOutputFile(output, "sample-repo-text-bundle-999-index.md")).toContain("sample-repo-text-bundle-001.md");
+  });
+
   it("returns a non-zero exit code for an invalid input directory", () => {
     const root = makeTempRepo();
     const result = spawnSync(process.execPath, ["dist/main.js", "--input", join(root, "missing"), "--output", join(root, "out")], {

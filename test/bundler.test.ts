@@ -1,5 +1,5 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import iconv from "iconv-lite";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -298,6 +298,36 @@ describe("createTextBundle", () => {
     expect(prompt).toContain("`text-bundle-response.md`");
     expect(prompt).toContain("## 出力形式");
     expect(prompt).toContain("~~~~");
+  });
+
+  it("uses a custom filename prefix for generated bundle files", () => {
+    const root = makeTempRepo();
+    writeFile(join(root, "README.md"), "# README\n");
+    writeFile(join(root, "src", "main.ts"), "const value = 1;\n");
+
+    const result = createTextBundle(bundleOptions(root, {
+      filenamePrefix: "igapyon-skill-compactor-text-bundle",
+    }), new Date(2026, 4, 5, 12, 58));
+
+    expect(result.promptPath.endsWith("igapyon-skill-compactor-text-bundle-000-prompt.md")).toBe(true);
+    expect(result.partPaths.map((path) => basename(path))).toEqual(["igapyon-skill-compactor-text-bundle-001.md"]);
+    expect(result.indexPath.endsWith("igapyon-skill-compactor-text-bundle-999-index.md")).toBe(true);
+
+    const prompt = readFileSync(result.promptPath, "utf8");
+    const index = readFileSync(result.indexPath, "utf8");
+    expect(prompt).toContain("1. `igapyon-skill-compactor-text-bundle-000-prompt.md`");
+    expect(prompt).toContain("2. `igapyon-skill-compactor-text-bundle-001.md`");
+    expect(prompt).toContain("3. `igapyon-skill-compactor-text-bundle-999-index.md`");
+    expect(index).toContain("| `igapyon-skill-compactor-text-bundle-001.md` |");
+  });
+
+  it("rejects unsafe filename prefixes through the core API", () => {
+    const root = makeTempRepo();
+    writeFile(join(root, "README.md"), "# README\n");
+
+    expect(() => createTextBundle(bundleOptions(root, {
+      filenamePrefix: "bad/name",
+    }), new Date(2026, 4, 5, 12, 58))).toThrow("filenamePrefix must contain only");
   });
 
   it("writes part Markdown with path headings and backtick code fences", () => {

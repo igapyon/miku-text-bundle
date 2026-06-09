@@ -8,6 +8,7 @@ export type EncodingOptions = {
 export type CliOptions = {
   inputDirectory: string;
   outputDirectory: string;
+  filenamePrefix?: string;
   maxChars: number;
   maxInputFileBytes?: number;
   encoding?: EncodingOptions;

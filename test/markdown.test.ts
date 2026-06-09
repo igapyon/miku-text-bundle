@@ -111,7 +111,11 @@ const value = 1;
   });
 
   it("builds stable prompt Markdown", () => {
-    expect(buildPromptMarkdown(promptPartFileNames)).toBe(`# Text Bundle Prompt
+    expect(buildPromptMarkdown({
+      promptFileName: "text-bundle-000-prompt.md",
+      partFileNames: promptPartFileNames,
+      indexFileName: "text-bundle-999-index.md",
+    })).toBe(`# Text Bundle Prompt
 
 これから Markdown バンドルを複数のメッセージに分けて順番に送ります。
 

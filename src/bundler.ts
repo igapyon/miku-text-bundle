@@ -25,6 +25,7 @@ type BundlePartsResult = {
 
 type BundleMarkdownWriteParams = {
   outputDirectory: string;
+  filenamePrefix: string;
   inputDirectory: string;
   parts: BundlePart[];
   collectedFiles: CollectedFile[];
@@ -39,14 +40,24 @@ type BundleMarkdownPaths = {
   partPaths: string[];
 };
 
-const INDEX_FILE_NAME = "text-bundle-999-index.md";
-const PROMPT_FILE_NAME = "text-bundle-000-prompt.md";
 const MAX_BUNDLE_PART_NUMBER = 998;
+const DEFAULT_FILENAME_PREFIX = "text-bundle";
 const DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
 const DEFAULT_ENCODING_OPTIONS = {
   default: "utf-8",
   extensions: {} as Record<string, SupportedEncoding>,
 } satisfies NonNullable<CliOptions["encoding"]>;
+
+function normalizeFilenamePrefix(value: string): string {
+  const prefix = value.trim();
+  if (prefix.length === 0) {
+    throw new Error("filenamePrefix must not be empty.");
+  }
+  if (!/^[A-Za-z0-9._-]+$/.test(prefix)) {
+    throw new Error("filenamePrefix must contain only ASCII letters, digits, dots, underscores, and hyphens.");
+  }
+  return prefix;
+}
 
 export function chooseOutputDirectory(outputDirectory: string): string {
   return resolve(outputDirectory);
@@ -222,13 +233,25 @@ function splitOversizedFile(file: CollectedFile, maxChars: number): BundleChunk[
   return createSplitFileChunks(file, splitContentByMaxChars(file.content, maxChars));
 }
 
-function createBundlePart(partNumber: number, chunks: BundleChunk[], charCount: number): BundlePart {
+function bundlePromptFileName(filenamePrefix: string): string {
+  return `${filenamePrefix}-000-prompt.md`;
+}
+
+function bundlePartFileName(filenamePrefix: string, partNumber: number): string {
+  return `${filenamePrefix}-${String(partNumber).padStart(3, "0")}.md`;
+}
+
+function bundleIndexFileName(filenamePrefix: string): string {
+  return `${filenamePrefix}-999-index.md`;
+}
+
+function createBundlePart(filenamePrefix: string, partNumber: number, chunks: BundleChunk[], charCount: number): BundlePart {
   if (partNumber > MAX_BUNDLE_PART_NUMBER) {
-    throw new Error(`Part count exceeds ${MAX_BUNDLE_PART_NUMBER}; text-bundle-999-index.md is reserved for the final index.`);
+    throw new Error(`Part count exceeds ${MAX_BUNDLE_PART_NUMBER}; ${bundleIndexFileName(filenamePrefix)} is reserved for the final index.`);
   }
 
   return {
-    fileName: `text-bundle-${String(partNumber).padStart(3, "0")}.md`,
+    fileName: bundlePartFileName(filenamePrefix, partNumber),
     partNumber,
     chunks,
     charCount,
@@ -256,7 +279,7 @@ function buildChunks(files: CollectedFile[], maxChars: number): BundleChunksResu
   return { chunks, warnings };
 }
 
-function buildParts(files: CollectedFile[], maxChars: number): BundlePartsResult {
+function buildParts(files: CollectedFile[], maxChars: number, filenamePrefix: string): BundlePartsResult {
   const { chunks, warnings } = buildChunks(files, maxChars);
 
   const parts: BundlePart[] = [];
@@ -267,7 +290,7 @@ function buildParts(files: CollectedFile[], maxChars: number): BundlePartsResult
     if (currentChunks.length === 0) {
       return;
     }
-    parts.push(createBundlePart(parts.length + 1, currentChunks, currentChars));
+    parts.push(createBundlePart(filenamePrefix, parts.length + 1, currentChunks, currentChars));
     currentChunks = [];
     currentChars = 0;
   };
@@ -285,9 +308,11 @@ function buildParts(files: CollectedFile[], maxChars: number): BundlePartsResult
 }
 
 function writeBundleMarkdownFiles(params: BundleMarkdownWriteParams): BundleMarkdownPaths {
-  const { outputDirectory, inputDirectory, parts, collectedFiles, skippedFiles, markers, warnings } = params;
-  const indexPath = join(outputDirectory, INDEX_FILE_NAME);
-  const promptPath = join(outputDirectory, PROMPT_FILE_NAME);
+  const { outputDirectory, filenamePrefix, inputDirectory, parts, collectedFiles, skippedFiles, markers, warnings } = params;
+  const indexFileName = bundleIndexFileName(filenamePrefix);
+  const promptFileName = bundlePromptFileName(filenamePrefix);
+  const indexPath = join(outputDirectory, indexFileName);
+  const promptPath = join(outputDirectory, promptFileName);
   const partPaths = parts.map((part) => join(outputDirectory, part.fileName));
 
   for (const part of parts) {
@@ -304,7 +329,11 @@ function writeBundleMarkdownFiles(params: BundleMarkdownWriteParams): BundleMark
     warnings,
   }), "utf8");
 
-  writeFileSync(promptPath, buildPromptMarkdown(parts.map((part) => part.fileName)), "utf8");
+  writeFileSync(promptPath, buildPromptMarkdown({
+    promptFileName,
+    partFileNames: parts.map((part) => part.fileName),
+    indexFileName,
+  }), "utf8");
 
   return { indexPath, promptPath, partPaths };
 }
@@ -339,15 +368,17 @@ export function createTextBundle(options: CliOptions, now = new Date()): BundleR
   }
 
   const outputDirectory = chooseOutputDirectory(options.outputDirectory);
+  const filenamePrefix = normalizeFilenamePrefix(options.filenamePrefix ?? DEFAULT_FILENAME_PREFIX);
   mkdirSync(outputDirectory, { recursive: true });
 
   const gitignorePatterns = readRootGitignore(inputPath);
   const { files, skipped, ignored } = collectFiles(inputPath, outputDirectory, options, gitignorePatterns);
   const markers = files.flatMap((file) => file.markers);
-  const { parts, warnings } = buildParts(files, options.maxChars);
+  const { parts, warnings } = buildParts(files, options.maxChars, filenamePrefix);
 
   const { indexPath, promptPath, partPaths } = writeBundleMarkdownFiles({
     outputDirectory,
+    filenamePrefix,
     inputDirectory: inputPath,
     parts,
     collectedFiles: files,
