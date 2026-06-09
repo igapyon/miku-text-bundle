@@ -174,7 +174,25 @@ export function buildIndexMarkdown(params: {
   return markdown(lines);
 }
 
-export function buildPromptMarkdown(partFileNames: string[]): string {
+type PromptMarkdownParams = {
+  promptFileName: string;
+  partFileNames: string[];
+  indexFileName: string;
+};
+
+function normalizePromptMarkdownParams(params: string[] | PromptMarkdownParams): PromptMarkdownParams {
+  if (Array.isArray(params)) {
+    return {
+      promptFileName: "text-bundle-000-prompt.md",
+      partFileNames: params,
+      indexFileName: "text-bundle-999-index.md",
+    };
+  }
+  return params;
+}
+
+export function buildPromptMarkdown(params: string[] | PromptMarkdownParams): string {
+  const { promptFileName, partFileNames, indexFileName } = normalizePromptMarkdownParams(params);
   const lines = [
     "# Text Bundle Prompt",
     "",
@@ -182,17 +200,17 @@ export function buildPromptMarkdown(partFileNames: string[]): string {
     "",
     "各メッセージを受け取ったら、内容の分析や要約はまだ行わず、`受領しました` とだけ返してください。",
     "",
-    "`text-bundle-999-index.md` を受け取るまで、最終回答を開始しないでください。",
+    `\`${indexFileName}\` を受け取るまで、最終回答を開始しないでください。`,
     "",
     "## 読み込み順",
     "",
-    "1. `text-bundle-000-prompt.md`",
+    `1. \`${promptFileName}\``,
     ...partFileNames.map((fileName, index) => `${index + 2}. \`${fileName}\``),
-    `${partFileNames.length + 2}. \`text-bundle-999-index.md\``,
+    `${partFileNames.length + 2}. \`${indexFileName}\``,
     "",
     "## 回答ファイル",
     "",
-    "`text-bundle-999-index.md` の後に作成する回答は `text-bundle-response.md` として保存する想定です。",
+    `\`${indexFileName}\` の後に作成する回答は \`text-bundle-response.md\` として保存する想定です。`,
     "",
     "## 出力形式",
     "",

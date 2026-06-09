@@ -3,7 +3,8 @@ import { compareUtf16CodeUnits, normalizePattern } from "./path-utils.js";
 
 const CLI_DEFAULT_MAX_CHARS = 120000;
 const CLI_DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
-export const CLI_VERSION = "0.9.0";
+const CLI_DEFAULT_FILENAME_PREFIX = "text-bundle";
+export const CLI_VERSION = "1.0.0";
 const SUPPORTED_ENCODINGS = new Set<SupportedEncoding>(["utf-8", "shift_jis"]);
 export const DEFAULT_EXCLUDE_EXTENSIONS = [
   ".7z",
@@ -74,6 +75,7 @@ export const DEFAULT_EXCLUDE_DIRECTORIES = [
 type ParseState = {
   inputDirectory?: string;
   outputDirectory?: string;
+  filenamePrefix: string;
   maxChars: number;
   maxInputFileBytes: number;
   encoding: EncodingOptions;
@@ -117,6 +119,17 @@ function parsePositiveInteger(value: string, optionName: string): number {
     throw new Error(`${optionName} must be a positive integer.`);
   }
   return parsed;
+}
+
+function parseFilenamePrefix(value: string): string {
+  const prefix = value.trim();
+  if (prefix.length === 0) {
+    throw new Error("--filename-prefix must not be empty.");
+  }
+  if (!/^[A-Za-z0-9._-]+$/.test(prefix)) {
+    throw new Error("--filename-prefix must contain only ASCII letters, digits, dots, underscores, and hyphens.");
+  }
+  return prefix;
 }
 
 function parseSupportedEncoding(value: string, optionName: string): SupportedEncoding {
@@ -169,6 +182,7 @@ function parseEncodingExtensions(value: string): Record<string, SupportedEncodin
 
 function createParseState(): ParseState {
   return {
+    filenamePrefix: CLI_DEFAULT_FILENAME_PREFIX,
     maxChars: CLI_DEFAULT_MAX_CHARS,
     maxInputFileBytes: CLI_DEFAULT_MAX_INPUT_FILE_BYTES,
     encoding: {
@@ -199,6 +213,11 @@ function consumeOption(argv: string[], index: number, state: ParseState): number
 
   if (arg === "--output") {
     state.outputDirectory = readRequiredOptionValue(argv, index, "--output");
+    return index + 1;
+  }
+
+  if (arg === "--filename-prefix") {
+    state.filenamePrefix = parseFilenamePrefix(readRequiredOptionValue(argv, index, "--filename-prefix"));
     return index + 1;
   }
 
@@ -293,6 +312,7 @@ export function parseArgs(argv: string[]): CliOptions {
   return {
     inputDirectory,
     outputDirectory,
+    filenamePrefix: state.filenamePrefix,
     maxChars: state.maxChars,
     maxInputFileBytes: state.maxInputFileBytes,
     encoding: state.encoding,
@@ -308,20 +328,51 @@ export function printHelp(): void {
   miku-text-bundle --help
   miku-text-bundle --version
 
+Description:
+  Scan local text-like files under --input and generate split Markdown bundle
+  files under --output for generative AI handoff. No network access is used.
+
+Default behavior:
+  Required: --input <dir>, --output <dir>
+  Defaults: --filename-prefix text-bundle, --max-chars 120000,
+  --max-input-file-bytes 1000000, --encoding utf-8.
+  Input paths are ordered by POSIX relative path using UTF-16 code units.
+
+Inputs:
+  Reads regular files under --input. Skips known binary extensions, default
+  excluded directories such as .git, node_modules, dist, coverage, target,
+  workplace, and files ignored by the input root .gitignore.
+
+Generated artifacts:
+  <prefix>-000-prompt.md
+  <prefix>-001.md ... <prefix>-998.md
+  <prefix>-999-index.md
+  These files are generated artifacts and may be regenerated.
+
+Output and overwrite behavior:
+  Creates --output when missing. Existing generated files with the same names
+  are overwritten. Terminal stdout is progress/completion text, not a stable
+  machine-readable API. The Markdown files are the stable handoff artifacts.
+
+Diagnostics and exit codes:
+  Skipped readable-candidate files and split warnings are recorded in
+  <prefix>-999-index.md. Invalid usage or processing errors are printed to
+  stderr. Exit code 0 means success/help/version; exit code 1 means failure.
+
 Options:
-  --max-chars <number>
-  --max-input-file-bytes <number>
-  --encoding utf-8|shift_jis
+  --filename-prefix <prefix>       File basename prefix. Allowed: A-Z a-z 0-9 . _ -
+  --max-chars <number>             Max approximate characters per part.
+  --max-input-file-bytes <number>  Max bytes read from one input file.
+  --encoding utf-8|shift_jis       Default input file encoding.
   --encoding-extension ".java=shift_jis"
   --add-exclude-extension ".ext"
   --remove-exclude-extension ".ext"
   --add-exclude-directory "dir"
   --remove-exclude-directory "dir"
-  --verbose
+  --verbose                        Print ignored-file count details.
 
-Description:
-  Collect text-like files under the input directory and generate split
-  Markdown bundles for generative AI handoff.
+Example:
+  miku-text-bundle --input . --output out --filename-prefix my-repo-text-bundle
 `);
 }
 

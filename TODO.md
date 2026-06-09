@@ -17,6 +17,7 @@
 - `.gitignore` matcher limitations are documented in `docs/gitignore-limitations.md`.
 - Golden output tests cover representative `text-bundle-999-index.md`, `text-bundle-000-prompt.md`, and `text-bundle-*.md` Markdown.
 - `text-bundle-000-prompt.md` supports a generic multi-message paste workflow with `受領しました` acknowledgements and `text-bundle-999-index.md` as the terminal file.
+- `--filename-prefix` can replace the generated Markdown file basename prefix while preserving the default `text-bundle` names when omitted.
 
 ## Next Tasks
 
@@ -42,5 +43,6 @@ Use the generated output directory as the human review artifact for the final ch
 - The CLI requires `--input` and `--output`; positional input/output arguments are not supported.
 - Default binary extension and directory exclusion lists can be adjusted with `--add-exclude-*` and `--remove-exclude-*` options.
 - The default single input file limit is 1,000,000 bytes and can be changed with `--max-input-file-bytes`.
+- The generated filename prefix defaults to `text-bundle`; custom prefixes are trimmed and limited to ASCII letters, digits, `.`, `_`, and `-`.
 - `workplace/` output is ignored by Git except for `workplace/.gitkeep`.
 - `npm pack --dry-run` uses `workplace/.npm-cache` through the `pack:check` script to avoid local npm cache permission issues.
