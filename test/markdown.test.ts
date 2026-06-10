@@ -31,7 +31,7 @@ describe("Markdown golden outputs", () => {
 
   const skippedFiles: SkippedFile[] = [{
     relativePath: "docs/huge.md",
-    reason: "ファイルサイズが 100 bytes の上限を超えたためスキップしました。",
+    reason: "File size exceeds the 100 byte limit.",
   }];
 
   const markers: Marker[] = [{
@@ -48,13 +48,23 @@ describe("Markdown golden outputs", () => {
     collectedFiles,
     skippedFiles,
     markers,
-    warnings: ["`src/large.ts` は --max-chars を超えたため 2 個に分割しました。"],
+    warnings: ["`src/large.ts` exceeded --max-chars and was split into 2 chunks."],
   };
 
   const promptPartFileNames = ["text-bundle-001.md", "text-bundle-002.md"];
 
   it("builds stable part Markdown", () => {
-    expect(buildPartMarkdown(part)).toBe(`# Text Bundle Part 001
+    expect(buildPartMarkdown(part, {
+      toolName: "miku-text-bundle",
+      toolVersion: "1.0.1",
+    })).toBe(`---
+tool: miku-text-bundle
+version: 1.0.1
+role: part
+part: 1
+---
+
+# Text Bundle Part 001
 
 - Part file: \`text-bundle-001.md\`
 - Files/chunks: 1
@@ -66,16 +76,37 @@ describe("Markdown golden outputs", () => {
 - Source characters: 17
 - Source lines: 2
 
-\`\`\`ts
+~~~ts
 const value = 1;
 
-\`\`\`
+~~~
 
 `);
   });
 
+  it("uses longer tilde fences when content contains tilde fences", () => {
+    expect(buildPartMarkdown({
+      ...part,
+      chunks: [{
+        ...part.chunks[0]!,
+        content: "~~~md\ninside\n~~~\n",
+      }],
+    })).toContain("~~~~ts\n~~~md\ninside\n~~~\n\n~~~~");
+  });
+
   it("builds stable index Markdown", () => {
-    expect(buildIndexMarkdown(indexParams)).toBe(`# Text Bundle Index
+    expect(buildIndexMarkdown({
+      ...indexParams,
+      toolName: "miku-text-bundle",
+      toolVersion: "1.0.1",
+    })).toBe(`---
+tool: miku-text-bundle
+version: 1.0.1
+role: index
+terminal: true
+---
+
+# Text Bundle Index
 
 ## Summary
 
@@ -95,11 +126,11 @@ const value = 1;
 
 | File | Reason |
 | --- | --- |
-| \`docs/huge.md\` | ファイルサイズが 100 bytes の上限を超えたためスキップしました。 |
+| \`docs/huge.md\` | File size exceeds the 100 byte limit. |
 
 ## Warnings
 
-- \`src/large.ts\` は --max-chars を超えたため 2 個に分割しました。
+- \`src/large.ts\` exceeded --max-chars and was split into 2 chunks.
 
 ## Markers
 
@@ -110,35 +141,67 @@ const value = 1;
 `);
   });
 
+  it("adds Agent Skill handoff guidance when SKILL.md is bundled", () => {
+    const skillFile: CollectedFile = {
+      absolutePath: "/repo/skills/example/SKILL.md",
+      relativePath: "skills/example/SKILL.md",
+      extension: "md",
+      content: "---\nname: example\n---\n",
+      charCount: 22,
+      lineCount: 3,
+      markers: [],
+    };
+
+    const index = buildIndexMarkdown({
+      ...indexParams,
+      collectedFiles: [...collectedFiles, skillFile],
+    });
+
+    expect(index).toContain("## Agent Skill Handoff");
+    expect(index).toContain("`skills/example/SKILL.md`");
+    expect(index).toContain("keep them available for reference in this conversation");
+    expect(index).toContain("activation rules, operating rules, workflow, and references");
+  });
+
   it("builds stable prompt Markdown", () => {
     expect(buildPromptMarkdown({
       promptFileName: "text-bundle-000-prompt.md",
       partFileNames: promptPartFileNames,
       indexFileName: "text-bundle-999-index.md",
-    })).toBe(`# Text Bundle Prompt
+      toolName: "miku-text-bundle",
+      toolVersion: "1.0.1",
+    })).toBe(`---
+tool: miku-text-bundle
+version: 1.0.1
+role: prompt
+---
 
-これから Markdown バンドルを複数のメッセージに分けて順番に送ります。
+# Text Bundle Prompt
 
-各メッセージを受け取ったら、内容の分析や要約はまだ行わず、\`受領しました\` とだけ返してください。
+This is the reading instruction for a Text Bundle that packages a set of files for handoff to generative AI or similar tools.
 
-\`text-bundle-999-index.md\` を受け取るまで、最終回答を開始しないでください。
+The Markdown bundle will be sent in multiple messages in the order listed below.
 
-## 読み込み順
+After each message, do not analyze or summarize the content yet. Reply only with \`Received\`.
+
+Do not start the final response until you receive \`text-bundle-999-index.md\`.
+
+## Reading Order
 
 1. \`text-bundle-000-prompt.md\`
 2. \`text-bundle-001.md\`
 3. \`text-bundle-002.md\`
 4. \`text-bundle-999-index.md\`
 
-## 回答ファイル
+## Response File
 
-\`text-bundle-999-index.md\` の後に作成する回答は \`text-bundle-response.md\` として保存する想定です。
+If you save the final response after \`text-bundle-999-index.md\`, \`text-bundle-response.md\` is the recommended filename.
 
-## 出力形式
+## Output Format
 
-markdown テキスト形式で出力してください。
+Output the final response as Markdown text.
 
-○最終的な回答は Markdown テキスト形式で出力し、さらに ~~~~ で囲まれた一塊として出力してください。markdown 内に backtick による code fence が含まれる場合があるため、外側の囲みは tilde を使ってください。
+Wrap the entire final Markdown response in a single outer fence using \`~~~~\`. Use tildes for the outer fence because the Markdown response may contain backtick code fences.
 `);
   });
 });

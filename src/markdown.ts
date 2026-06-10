@@ -14,9 +14,9 @@ const EXTENSION_LANGUAGES: Record<string, string> = {
 };
 
 function fenceFor(content: string): string {
-  const matches = content.match(/`{3,}/g) ?? [];
+  const matches = content.match(/~{3,}/g) ?? [];
   const longest = matches.reduce((max, item) => Math.max(max, item.length), 2);
-  return "`".repeat(longest + 1);
+  return "~".repeat(longest + 1);
 }
 
 function languageFor(extension: string): string {
@@ -25,6 +25,23 @@ function languageFor(extension: string): string {
 
 function markdown(lines: string[]): string {
   return `${lines.join("\n").replace(/\n{3,}/g, "\n\n")}\n`;
+}
+
+type TextBundleMetadata = {
+  toolName?: string;
+  toolVersion?: string;
+};
+
+function frontMatter(role: string, metadata: TextBundleMetadata = {}, extra: string[] = []): string[] {
+  return [
+    "---",
+    `tool: ${metadata.toolName ?? "miku-text-bundle"}`,
+    `version: ${metadata.toolVersion ?? "unknown"}`,
+    `role: ${role}`,
+    ...extra,
+    "---",
+    "",
+  ];
 }
 
 function table(headers: string[], alignments: string[], rows: string[][]): string[] {
@@ -42,7 +59,7 @@ function code(value: string): string {
 
 function warningList(warnings: string[]): string[] {
   if (warnings.length === 0) {
-    return ["- なし", ""];
+    return ["- None", ""];
   }
 
   return warnings.map((warning) => `- ${warning}`).concat("");
@@ -50,7 +67,7 @@ function warningList(warnings: string[]): string[] {
 
 function markerTable(markers: Marker[]): string {
   if (markers.length === 0) {
-    return "- なし\n";
+    return "- None\n";
   }
 
   return table(
@@ -81,7 +98,7 @@ function buildChunkMarkdown(chunk: BundlePart["chunks"][number]): string[] {
   lines.push("");
 
   if (chunk.splitReason) {
-    lines.push(`このファイルはサイズ上限を超えたため、やむを得ず分割しました。元ファイル: \`${chunk.relativePath}\`。分割: ${chunk.chunkIndex} / ${chunk.chunkCount}。`);
+    lines.push(`This file exceeded the size limit and was split. Source file: \`${chunk.relativePath}\`. Split: ${chunk.chunkIndex} / ${chunk.chunkCount}.`);
     lines.push("");
   }
 
@@ -109,7 +126,7 @@ function partsTable(parts: BundlePart[]): string[] {
 
 function skippedFilesTable(skippedFiles: SkippedFile[]): string[] {
   if (skippedFiles.length === 0) {
-    return ["- なし", ""];
+    return ["- None", ""];
   }
 
   return table(
@@ -119,8 +136,36 @@ function skippedFilesTable(skippedFiles: SkippedFile[]): string[] {
   );
 }
 
-export function buildPartMarkdown(part: BundlePart): string {
+function agentSkillPaths(collectedFiles: CollectedFile[]): string[] {
+  return collectedFiles
+    .map((file) => file.relativePath)
+    .filter((relativePath) => relativePath === "SKILL.md" || /^skills\/[^/]+\/SKILL\.md$/.test(relativePath));
+}
+
+function agentSkillHandoffSection(skillPaths: string[]): string[] {
+  if (skillPaths.length === 0) {
+    return [];
+  }
+
+  return [
+    "## Agent Skill Handoff",
+    "",
+    "This Text Bundle includes Agent Skill definitions.",
+    "",
+    "Read the following `SKILL.md` files as the primary Agent Skill instructions and keep them available for reference in this conversation.",
+    "",
+    ...skillPaths.map((skillPath) => `- ${code(skillPath)}`),
+    "",
+    "After receiving this `999-index` file, the Text Bundle loading is complete. If the user asks to use this Agent Skill or the target product, prioritize the relevant `SKILL.md` activation rules, operating rules, workflow, and references, and work from the related files in this bundle.",
+    "",
+    "If higher-priority system, developer, or user instructions apply, follow those instructions first.",
+    "",
+  ];
+}
+
+export function buildPartMarkdown(part: BundlePart, metadata: TextBundleMetadata = {}): string {
   const lines = [
+    ...frontMatter("part", metadata, [`part: ${part.partNumber}`]),
     `# Text Bundle Part ${String(part.partNumber).padStart(3, "0")}`,
     "",
     `- Part file: \`${part.fileName}\``,
@@ -144,9 +189,13 @@ export function buildIndexMarkdown(params: {
   skippedFiles: SkippedFile[];
   markers: Marker[];
   warnings: string[];
+  toolName?: string;
+  toolVersion?: string;
 }): string {
-  const { inputDirectory, outputDirectory, parts, collectedFiles, skippedFiles, markers, warnings } = params;
+  const { inputDirectory, outputDirectory, parts, collectedFiles, skippedFiles, markers, warnings, toolName, toolVersion } = params;
+  const skillPaths = agentSkillPaths(collectedFiles);
   const lines = [
+    ...frontMatter("index", { toolName, toolVersion }, ["terminal: true"]),
     "# Text Bundle Index",
     "",
     "## Summary",
@@ -157,6 +206,7 @@ export function buildIndexMarkdown(params: {
     `- Skipped files: ${skippedFiles.length}`,
     `- Parts: ${parts.length}`,
     "",
+    ...agentSkillHandoffSection(skillPaths),
     "## Parts",
     "",
     ...partsTable(parts),
@@ -178,6 +228,8 @@ type PromptMarkdownParams = {
   promptFileName: string;
   partFileNames: string[];
   indexFileName: string;
+  toolName?: string;
+  toolVersion?: string;
 };
 
 function normalizePromptMarkdownParams(params: string[] | PromptMarkdownParams): PromptMarkdownParams {
@@ -192,31 +244,34 @@ function normalizePromptMarkdownParams(params: string[] | PromptMarkdownParams):
 }
 
 export function buildPromptMarkdown(params: string[] | PromptMarkdownParams): string {
-  const { promptFileName, partFileNames, indexFileName } = normalizePromptMarkdownParams(params);
+  const { promptFileName, partFileNames, indexFileName, toolName, toolVersion } = normalizePromptMarkdownParams(params);
   const lines = [
+    ...frontMatter("prompt", { toolName, toolVersion }),
     "# Text Bundle Prompt",
     "",
-    "これから Markdown バンドルを複数のメッセージに分けて順番に送ります。",
+    "This is the reading instruction for a Text Bundle that packages a set of files for handoff to generative AI or similar tools.",
     "",
-    "各メッセージを受け取ったら、内容の分析や要約はまだ行わず、`受領しました` とだけ返してください。",
+    "The Markdown bundle will be sent in multiple messages in the order listed below.",
     "",
-    `\`${indexFileName}\` を受け取るまで、最終回答を開始しないでください。`,
+    "After each message, do not analyze or summarize the content yet. Reply only with `Received`.",
     "",
-    "## 読み込み順",
+    `Do not start the final response until you receive \`${indexFileName}\`.`,
+    "",
+    "## Reading Order",
     "",
     `1. \`${promptFileName}\``,
     ...partFileNames.map((fileName, index) => `${index + 2}. \`${fileName}\``),
     `${partFileNames.length + 2}. \`${indexFileName}\``,
     "",
-    "## 回答ファイル",
+    "## Response File",
     "",
-    `\`${indexFileName}\` の後に作成する回答は \`text-bundle-response.md\` として保存する想定です。`,
+    `If you save the final response after \`${indexFileName}\`, \`text-bundle-response.md\` is the recommended filename.`,
     "",
-    "## 出力形式",
+    "## Output Format",
     "",
-    "markdown テキスト形式で出力してください。",
+    "Output the final response as Markdown text.",
     "",
-    "○最終的な回答は Markdown テキスト形式で出力し、さらに ~~~~ で囲まれた一塊として出力してください。markdown 内に backtick による code fence が含まれる場合があるため、外側の囲みは tilde を使ってください。",
+    "Wrap the entire final Markdown response in a single outer fence using `~~~~`. Use tildes for the outer fence because the Markdown response may contain backtick code fences.",
     "",
   ];
 

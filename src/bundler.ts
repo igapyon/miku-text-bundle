@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { extname, join, relative, resolve } from "node:path";
 import { TextDecoder } from "node:util";
+import { CLI_VERSION } from "./cli.js";
 import { discoverCandidateFiles } from "./discovery.js";
 import { buildIndexMarkdown, buildPartMarkdown, buildPromptMarkdown } from "./markdown.js";
 import { parseGitignore } from "./match.js";
@@ -67,6 +68,11 @@ function relativeInputPath(inputPath: string, filePath: string): string {
   return toPosixPath(relative(inputPath, filePath));
 }
 
+function displayPathFromCurrentDirectory(pathValue: string): string {
+  const relativePath = relative(process.cwd(), pathValue);
+  return relativePath.length === 0 ? "." : toPosixPath(relativePath);
+}
+
 function readRootGitignore(inputPath: string): string[] {
   const gitignorePath = join(inputPath, ".gitignore");
   if (!statSync(gitignorePath, { throwIfNoEntry: false })?.isFile()) {
@@ -116,14 +122,14 @@ function extractMarkers(relativePath: string, content: string): Marker[] {
 function skippedForOversizedFile(relativePath: string, maxInputFileBytes: number): SkippedFile {
   return {
     relativePath,
-    reason: `ファイルサイズが ${maxInputFileBytes} bytes の上限を超えたためスキップしました。`,
+    reason: `File size exceeds the ${maxInputFileBytes} byte limit.`,
   };
 }
 
 function skippedForUnreadableFile(relativePath: string, encoding: SupportedEncoding): SkippedFile {
   return {
     relativePath,
-    reason: `${formatEncoding(encoding)} として読めない、またはバイナリと判定したためスキップしました。`,
+    reason: `Skipped because the file cannot be decoded as ${formatEncoding(encoding)} or was detected as binary.`,
   };
 }
 
@@ -221,7 +227,7 @@ function createSplitFileChunks(file: CollectedFile, chunkContents: string[]): Bu
     originalLineCount: file.lineCount,
     chunkIndex: index + 1,
     chunkCount,
-    splitReason: "このファイルはサイズ上限を超えたため、やむを得ず分割しました。",
+    splitReason: "This file exceeded the size limit and was split.",
   }));
 }
 
@@ -263,7 +269,7 @@ function shouldStartNewPart(currentChunks: BundleChunk[], currentChars: number, 
 }
 
 function warningForSplitFile(file: CollectedFile, chunkCount: number): string {
-  return `\`${file.relativePath}\` は --max-chars を超えたため ${chunkCount} 個に分割しました。`;
+  return `\`${file.relativePath}\` exceeded --max-chars and was split into ${chunkCount} chunks.`;
 }
 
 function buildChunks(files: CollectedFile[], maxChars: number): BundleChunksResult {
@@ -316,23 +322,30 @@ function writeBundleMarkdownFiles(params: BundleMarkdownWriteParams): BundleMark
   const partPaths = parts.map((part) => join(outputDirectory, part.fileName));
 
   for (const part of parts) {
-    writeFileSync(join(outputDirectory, part.fileName), buildPartMarkdown(part), "utf8");
+    writeFileSync(join(outputDirectory, part.fileName), buildPartMarkdown(part, {
+      toolName: "miku-text-bundle",
+      toolVersion: CLI_VERSION,
+    }), "utf8");
   }
 
   writeFileSync(indexPath, buildIndexMarkdown({
-    inputDirectory,
-    outputDirectory,
+    inputDirectory: displayPathFromCurrentDirectory(inputDirectory),
+    outputDirectory: displayPathFromCurrentDirectory(outputDirectory),
     parts,
     collectedFiles,
     skippedFiles,
     markers,
     warnings,
+    toolName: "miku-text-bundle",
+    toolVersion: CLI_VERSION,
   }), "utf8");
 
   writeFileSync(promptPath, buildPromptMarkdown({
     promptFileName,
     partFileNames: parts.map((part) => part.fileName),
     indexFileName,
+    toolName: "miku-text-bundle",
+    toolVersion: CLI_VERSION,
   }), "utf8");
 
   return { indexPath, promptPath, partPaths };

@@ -85,7 +85,7 @@ describe("CLI subprocess", () => {
     const part = readOutputFile(output, firstPartFileName);
     expect(stdout).toContain("completed:");
     expect(index).toContain("`docs/huge.md`");
-    expect(index).toContain("100 bytes");
+    expect(index).toContain("100 byte limit");
     expect(part).not.toContain("docs/huge.md");
   });
 

@@ -4,7 +4,7 @@ import { compareUtf16CodeUnits, normalizePattern } from "./path-utils.js";
 const CLI_DEFAULT_MAX_CHARS = 120000;
 const CLI_DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
 const CLI_DEFAULT_FILENAME_PREFIX = "text-bundle";
-export const CLI_VERSION = "1.0.0";
+export const CLI_VERSION = "1.0.1";
 const SUPPORTED_ENCODINGS = new Set<SupportedEncoding>(["utf-8", "shift_jis"]);
 export const DEFAULT_EXCLUDE_EXTENSIONS = [
   ".7z",
@@ -348,6 +348,7 @@ Generated artifacts:
   <prefix>-001.md ... <prefix>-998.md
   <prefix>-999-index.md
   These files are generated artifacts and may be regenerated.
+  For Web UI, pasting <prefix>-000-prompt.md as the first message body is recommended, not required.
 
 Output and overwrite behavior:
   Creates --output when missing. Existing generated files with the same names
