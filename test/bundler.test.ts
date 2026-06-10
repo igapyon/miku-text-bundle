@@ -76,10 +76,12 @@ describe("createTextBundle", () => {
     expect(index).toContain("`src/main.ts`");
     expect(index).toContain("FIXME");
     expect(index).toContain("`.gitignore`");
+    expect(index).not.toContain(`Input directory: \`${root}\``);
+    expect(index).not.toContain(`Output directory: \`${join(root, "out")}\``);
     expect(index).not.toContain(".git/secret.ts");
     expect(index).not.toContain("ignored.ts");
     expect(part).toContain("### src/main.ts");
-    expect(part).toContain("```ts");
+    expect(part).toContain("~~~ts");
     expect(prompt).toContain("text-bundle-999-index.md");
     expect(prompt).toContain("text-bundle-response.md");
   });
@@ -145,7 +147,7 @@ describe("createTextBundle", () => {
     expect(result.filesCollected).toBe(1);
     expect(result.filesSkipped).toBe(1);
     expect(index).toContain("`docs/huge.md`");
-    expect(index).toContain("ファイルサイズ");
+    expect(index).toContain("File size exceeds the 100 byte limit.");
     expect(part).not.toContain("docs/huge.md");
   });
 
@@ -161,8 +163,8 @@ describe("createTextBundle", () => {
     const index = readFileSync(result.indexPath, "utf8");
     const firstPart = readFileSync(result.partPaths[0]!, "utf8");
     expect(index).toContain("--max-chars");
-    expect(firstPart).toContain("やむを得ず分割");
-    expect(firstPart.indexOf("やむを得ず分割")).toBeLessThan(firstPart.indexOf("```ts"));
+    expect(firstPart).toContain("This file exceeded the size limit and was split.");
+    expect(firstPart.indexOf("This file exceeded the size limit and was split.")).toBeLessThan(firstPart.indexOf("~~~ts"));
   });
 
   it("excludes known binary extensions before reading files", () => {
@@ -288,15 +290,15 @@ describe("createTextBundle", () => {
 
     const prompt = readFileSync(result.promptPath, "utf8");
     expect(prompt).toContain("# Text Bundle Prompt\n");
-    expect(prompt).toContain("## 読み込み順");
+    expect(prompt).toContain("## Reading Order");
     expect(prompt).toContain("1. `text-bundle-000-prompt.md`");
     expect(prompt).toContain("2. `text-bundle-001.md`");
     expect(prompt).toContain("3. `text-bundle-999-index.md`");
-    expect(prompt).toContain("`受領しました`");
+    expect(prompt).toContain("`Received`");
     expect(prompt).not.toContain("`END_OF_TEXT_BUNDLE`");
-    expect(prompt).toContain("## 回答ファイル");
+    expect(prompt).toContain("## Response File");
     expect(prompt).toContain("`text-bundle-response.md`");
-    expect(prompt).toContain("## 出力形式");
+    expect(prompt).toContain("## Output Format");
     expect(prompt).toContain("~~~~");
   });
 
@@ -342,7 +344,7 @@ describe("createTextBundle", () => {
     expect(part).toContain("- Characters: 17");
     expect(part).toContain("- Source characters: 17");
     expect(part).toContain("- Source lines: 2");
-    expect(part).toContain("```ts\nconst value = 1;\n\n```");
+    expect(part).toContain("~~~ts\nconst value = 1;\n\n~~~");
   });
 
   it("reserves text-bundle-999-index.md for the final index", () => {

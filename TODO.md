@@ -16,8 +16,9 @@
 - CLI bundle smoke test covers `bundle/miku-text-bundle.mjs` bundle generation.
 - `.gitignore` matcher limitations are documented in `docs/gitignore-limitations.md`.
 - Golden output tests cover representative `text-bundle-999-index.md`, `text-bundle-000-prompt.md`, and `text-bundle-*.md` Markdown.
-- `text-bundle-000-prompt.md` supports a generic multi-message paste workflow with `受領しました` acknowledgements and `text-bundle-999-index.md` as the terminal file.
+- `text-bundle-000-prompt.md` supports a generic multi-message paste workflow with `Received` acknowledgements and `text-bundle-999-index.md` as the terminal file.
 - `--filename-prefix` can replace the generated Markdown file basename prefix while preserving the default `text-bundle` names when omitted.
+- If the input contains `SKILL.md` or `skills/<skill-name>/SKILL.md`, `text-bundle-999-index.md` always includes Agent Skill handoff guidance.
 
 ## Next Tasks
 
@@ -26,6 +27,7 @@
 - Keep `TODO.md` itself in the default bundle input. Marker extraction ignores filename references such as `TODO.md`.
 - Confirm the npm package dry-run contents and GitHub Release bundle assets are limited to intended runtime files and docs.
 - After final verification, create a `v*` GitHub Release for the first release.
+- Future consideration: add an explicit Agent Skill detection override such as `--skill-mode auto|on|off`. For the current version, detection is automatic and not user-configurable.
 
 ## Verification Commands
 

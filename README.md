@@ -33,6 +33,7 @@ node dist/main.js --input . --output out --max-chars 120000
 
 CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/igapyon/items/c67f37ffe4d0fd1eed9d) を参照してください。
 
+`v1.0.1` の変更点は [docs/release-notes-v1.0.1.md](docs/release-notes-v1.0.1.md) を参照してください。
 `v1.0.0` の変更点は [docs/release-notes-v1.0.0.md](docs/release-notes-v1.0.0.md) を参照してください。
 `v0.9.0` の変更点は [docs/release-notes-v0.9.0.md](docs/release-notes-v0.9.0.md) を参照してください。
 `v0.8.1` の変更点は [docs/release-notes-v0.8.1.md](docs/release-notes-v0.8.1.md) を参照してください。
@@ -146,15 +147,21 @@ miku-text-bundle --input . --output out --encoding utf-8 --encoding-extension ".
 - `text-bundle-001.md`, `text-bundle-002.md` 以降の分割 Markdown ファイル
 - `text-bundle-999-index.md`
 
+各 Markdown ファイルの先頭には、生成ツール名、バージョン、ファイルの役割を示す短い YAML front matter を付与します。`text-bundle-000-prompt.md` は `role: prompt`、分割 Markdown ファイルは `role: part`、`text-bundle-999-index.md` は `role: index` です。
+
 `--filename-prefix <prefix>` を指定すると、`text-bundle` の部分を指定した prefix に置き換えます。たとえば `--filename-prefix igapyon-skill-compactor-text-bundle` の場合は、`igapyon-skill-compactor-text-bundle-000-prompt.md`、`igapyon-skill-compactor-text-bundle-001.md`、`igapyon-skill-compactor-text-bundle-999-index.md` を生成します。
 
 prefix は前後の空白を除去したうえで、`A-Z`、`a-z`、`0-9`、`.`、`_`、`-` のみを許可します。空文字、パス区切り、改行、制御文字、日本語などを含む値はエラーになります。
 
 `text-bundle-999-index.md` には、出力概要、Part 一覧、スキップされたファイル、警告、抽出した `TODO` / `FIXME` / `XXX` マーカーを記録します。
 
+入力に `SKILL.md` または `skills/<skill-name>/SKILL.md` が含まれる場合、`text-bundle-999-index.md` には Agent Skill 向けの handoff 指示も記録します。この指示は、受信側の生成AIに `SKILL.md` を Agent Skill の一次指示として読み込み、この会話内で参照可能な状態として扱うよう促します。
+
 `text-bundle-*.md` には、収集したファイルを `### path/to/file.ts` のような見出しで区切り、本文を backtick code fence で記録します。
 
-`text-bundle-000-prompt.md` には、複数メッセージで生成AIへ貼り付けるための順序、受領手順、終端ファイル `text-bundle-999-index.md`、回答ファイル名 `text-bundle-response.md`、回答形式を記録します。
+`text-bundle-000-prompt.md` には、複数メッセージで生成AIへ貼り付けるための順序、受領手順、終端ファイル `text-bundle-999-index.md`、保存する場合の推奨回答ファイル名 `text-bundle-response.md`、回答形式を記録します。
+
+生成AI の Web UI に投入する場合、`text-bundle-000-prompt.md` は添付ファイルではなく、最初のメッセージ本文として貼り付ける運用を推奨します。これは、指示文を会話の前提として安定して読ませやすくするための推奨運用であり、UI の仕様や利用状況によっては添付ファイルとして渡してもかまいません。`text-bundle-001.md` 以降の分割 Markdown ファイルと `text-bundle-999-index.md` は、UI の仕様に応じて添付ファイルとして渡せます。
 
 読み込み順は `text-bundle-000-prompt.md`、分割 Markdown ファイル、`text-bundle-999-index.md` です。`text-bundle-999-index.md` は最後に読む索引用の予約名であり、このファイルを受け取った時点で Text Bundle の読み込み完了とします。そのため、分割 Markdown ファイルは `text-bundle-001.md` から `text-bundle-998.md` までを上限とします。
 
