@@ -356,7 +356,7 @@ Output and overwrite behavior:
 
 Diagnostics and exit codes:
   Skipped readable-candidate files and split warnings are recorded in
-  the final part. Invalid usage or processing errors are printed to
+  the final part index. Invalid usage or processing errors are printed to
   stderr. Exit code 0 means success/help/version; exit code 1 means failure.
 
 Options:
