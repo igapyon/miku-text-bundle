@@ -346,8 +346,8 @@ Inputs:
 Generated artifacts:
   <prefix>-001.md ... <prefix>-999.md
   These files are generated artifacts and may be regenerated.
-  The first part includes the prompt instructions. The final part includes the index.
-  For Web UI, pasting the prompt section from <prefix>-001.md as the first message body is recommended, not required.
+  The first part includes the prompt instructions.
+  The final part includes the terminal index.
 
 Output and overwrite behavior:
   Creates --output when missing. Existing generated files with the same names
