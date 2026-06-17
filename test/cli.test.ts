@@ -132,6 +132,7 @@ describe("printHelp", () => {
     expect(output).not.toContain("recommended, not required");
     expect(output).toContain("Output and overwrite behavior:");
     expect(output).toContain("stdout is progress/completion text");
+    expect(output).toContain("the final part index. Invalid usage");
     expect(output).toContain("Exit code 0 means success/help/version");
     expect(output).toContain("--max-chars");
     expect(output).toContain("--filename-prefix");
