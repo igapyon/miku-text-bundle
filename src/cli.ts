@@ -4,7 +4,7 @@ import { compareUtf16CodeUnits, normalizePattern } from "./path-utils.js";
 const CLI_DEFAULT_MAX_CHARS = 120000;
 const CLI_DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
 const CLI_DEFAULT_FILENAME_PREFIX = "text-bundle";
-export const CLI_VERSION = "1.0.1";
+export const CLI_VERSION = "1.1.0";
 const SUPPORTED_ENCODINGS = new Set<SupportedEncoding>(["utf-8", "shift_jis"]);
 export const DEFAULT_EXCLUDE_EXTENSIONS = [
   ".7z",
@@ -344,11 +344,10 @@ Inputs:
   workplace, and files ignored by the input root .gitignore.
 
 Generated artifacts:
-  <prefix>-000-prompt.md
-  <prefix>-001.md ... <prefix>-998.md
-  <prefix>-999-index.md
+  <prefix>-001.md ... <prefix>-999.md
   These files are generated artifacts and may be regenerated.
-  For Web UI, pasting <prefix>-000-prompt.md as the first message body is recommended, not required.
+  The first part includes the prompt instructions. The final part includes the index.
+  For Web UI, pasting the prompt section from <prefix>-001.md as the first message body is recommended, not required.
 
 Output and overwrite behavior:
   Creates --output when missing. Existing generated files with the same names
@@ -357,7 +356,7 @@ Output and overwrite behavior:
 
 Diagnostics and exit codes:
   Skipped readable-candidate files and split warnings are recorded in
-  <prefix>-999-index.md. Invalid usage or processing errors are printed to
+  the final part. Invalid usage or processing errors are printed to
   stderr. Exit code 0 means success/help/version; exit code 1 means failure.
 
 Options:

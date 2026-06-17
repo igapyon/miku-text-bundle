@@ -142,7 +142,7 @@ function agentSkillPaths(collectedFiles: CollectedFile[]): string[] {
     .filter((relativePath) => relativePath === "SKILL.md" || /^skills\/[^/]+\/SKILL\.md$/.test(relativePath));
 }
 
-function agentSkillHandoffSection(skillPaths: string[]): string[] {
+function agentSkillHandoffSection(skillPaths: string[], terminalFileName = "the final part file"): string[] {
   if (skillPaths.length === 0) {
     return [];
   }
@@ -156,16 +156,51 @@ function agentSkillHandoffSection(skillPaths: string[]): string[] {
     "",
     ...skillPaths.map((skillPath) => `- ${code(skillPath)}`),
     "",
-    "After receiving this `999-index` file, the Text Bundle loading is complete. If the user asks to use this Agent Skill or the target product, prioritize the relevant `SKILL.md` activation rules, operating rules, workflow, and references, and work from the related files in this bundle.",
+    `After receiving ${code(terminalFileName)}, the Text Bundle loading is complete. If the user asks to use this Agent Skill or the target product, prioritize the relevant \`SKILL.md\` activation rules, operating rules, workflow, and references, and work from the related files in this bundle.`,
     "",
     "If higher-priority system, developer, or user instructions apply, follow those instructions first.",
     "",
   ];
 }
 
-export function buildPartMarkdown(part: BundlePart, metadata: TextBundleMetadata = {}): string {
+type IndexMarkdownParams = {
+  inputDirectory: string;
+  outputDirectory: string;
+  parts: BundlePart[];
+  collectedFiles: CollectedFile[];
+  skippedFiles: SkippedFile[];
+  markers: Marker[];
+  warnings: string[];
+  toolName?: string;
+  toolVersion?: string;
+  terminalFileName?: string;
+};
+
+type PromptMarkdownParams = {
+  promptFileName: string;
+  partFileNames: string[];
+  indexFileName: string;
+  toolName?: string;
+  toolVersion?: string;
+};
+
+type PartMarkdownOptions = {
+  prompt?: PromptMarkdownParams;
+  index?: IndexMarkdownParams;
+};
+
+export function buildPartMarkdown(part: BundlePart, metadata: TextBundleMetadata = {}, options: PartMarkdownOptions = {}): string {
+  const extraFrontMatter = [`part: ${part.partNumber}`];
+  if (options.prompt) {
+    extraFrontMatter.push("prompt: true");
+  }
+  if (options.index) {
+    extraFrontMatter.push("terminal: true");
+  }
+
   const lines = [
-    ...frontMatter("part", metadata, [`part: ${part.partNumber}`]),
+    ...frontMatter("part", metadata, extraFrontMatter),
+    ...(options.prompt ? buildPromptMarkdownLines(options.prompt, false) : []),
     `# Text Bundle Part ${String(part.partNumber).padStart(3, "0")}`,
     "",
     `- Part file: \`${part.fileName}\``,
@@ -178,24 +213,19 @@ export function buildPartMarkdown(part: BundlePart, metadata: TextBundleMetadata
     lines.push(...buildChunkMarkdown(chunk));
   }
 
+  if (options.index) {
+    lines.push(...buildIndexMarkdownLines(options.index, false));
+  }
+
   return markdown(lines);
 }
 
-export function buildIndexMarkdown(params: {
-  inputDirectory: string;
-  outputDirectory: string;
-  parts: BundlePart[];
-  collectedFiles: CollectedFile[];
-  skippedFiles: SkippedFile[];
-  markers: Marker[];
-  warnings: string[];
-  toolName?: string;
-  toolVersion?: string;
-}): string {
+function buildIndexMarkdownLines(params: IndexMarkdownParams, includeFrontMatter: boolean): string[] {
   const { inputDirectory, outputDirectory, parts, collectedFiles, skippedFiles, markers, warnings, toolName, toolVersion } = params;
+  const terminalFileName = params.terminalFileName ?? "the final part file";
   const skillPaths = agentSkillPaths(collectedFiles);
-  const lines = [
-    ...frontMatter("index", { toolName, toolVersion }, ["terminal: true"]),
+  return [
+    ...(includeFrontMatter ? frontMatter("index", { toolName, toolVersion }, ["terminal: true"]) : []),
     "# Text Bundle Index",
     "",
     "## Summary",
@@ -206,7 +236,7 @@ export function buildIndexMarkdown(params: {
     `- Skipped files: ${skippedFiles.length}`,
     `- Parts: ${parts.length}`,
     "",
-    ...agentSkillHandoffSection(skillPaths),
+    ...agentSkillHandoffSection(skillPaths, terminalFileName),
     "## Parts",
     "",
     ...partsTable(parts),
@@ -220,33 +250,32 @@ export function buildIndexMarkdown(params: {
     "",
     markerTable(markers),
   ];
-
-  return markdown(lines);
 }
 
-type PromptMarkdownParams = {
-  promptFileName: string;
-  partFileNames: string[];
-  indexFileName: string;
-  toolName?: string;
-  toolVersion?: string;
-};
+export function buildIndexMarkdown(params: IndexMarkdownParams): string {
+  return markdown(buildIndexMarkdownLines(params, true));
+}
 
 function normalizePromptMarkdownParams(params: string[] | PromptMarkdownParams): PromptMarkdownParams {
   if (Array.isArray(params)) {
     return {
-      promptFileName: "text-bundle-000-prompt.md",
+      promptFileName: params[0] ?? "text-bundle-001.md",
       partFileNames: params,
-      indexFileName: "text-bundle-999-index.md",
+      indexFileName: params.at(-1) ?? params[0] ?? "text-bundle-001.md",
     };
   }
   return params;
 }
 
-export function buildPromptMarkdown(params: string[] | PromptMarkdownParams): string {
+function buildPromptMarkdownLines(params: PromptMarkdownParams, includeFrontMatter: boolean): string[] {
   const { promptFileName, partFileNames, indexFileName, toolName, toolVersion } = normalizePromptMarkdownParams(params);
-  const lines = [
-    ...frontMatter("prompt", { toolName, toolVersion }),
+  const readingOrderFileNames = [
+    ...(partFileNames[0] === promptFileName ? [] : [promptFileName]),
+    ...partFileNames,
+    ...(partFileNames.at(-1) === indexFileName ? [] : [indexFileName]),
+  ];
+  return [
+    ...(includeFrontMatter ? frontMatter("prompt", { toolName, toolVersion }) : []),
     "# Text Bundle Prompt",
     "",
     "This is the reading instruction for a Text Bundle that packages a set of files for handoff to generative AI or similar tools.",
@@ -259,9 +288,7 @@ export function buildPromptMarkdown(params: string[] | PromptMarkdownParams): st
     "",
     "## Reading Order",
     "",
-    `1. \`${promptFileName}\``,
-    ...partFileNames.map((fileName, index) => `${index + 2}. \`${fileName}\``),
-    `${partFileNames.length + 2}. \`${indexFileName}\``,
+    ...readingOrderFileNames.map((fileName, index) => `${index + 1}. \`${fileName}\``),
     "",
     "## Response File",
     "",
@@ -274,6 +301,8 @@ export function buildPromptMarkdown(params: string[] | PromptMarkdownParams): st
     "Wrap the entire final Markdown response in a single outer fence using `~~~~`. Use tildes for the outer fence because the Markdown response may contain backtick code fences.",
     "",
   ];
+}
 
-  return lines.join("\n");
+export function buildPromptMarkdown(params: string[] | PromptMarkdownParams): string {
+  return buildPromptMarkdownLines(normalizePromptMarkdownParams(params), true).join("\n");
 }

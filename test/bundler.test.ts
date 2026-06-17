@@ -34,6 +34,15 @@ function bundleOptions(root: string, overrides: Partial<CliOptions> = {}): CliOp
   };
 }
 
+function indexSection(content: string): string {
+  return content.slice(content.indexOf("# Text Bundle Index"));
+}
+
+function partBodySection(content: string): string {
+  const indexStart = content.indexOf("# Text Bundle Index");
+  return indexStart === -1 ? content : content.slice(0, indexStart);
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   for (const root of tempRoots.splice(0)) {
@@ -50,7 +59,7 @@ describe("output directory selection", () => {
 });
 
 describe("createTextBundle", () => {
-  it("generates index, parts, and prompt from default repository files", () => {
+  it("generates compact part files with embedded prompt and index from default repository files", () => {
     const root = makeTempRepo();
     writeFile(join(root, "README.md"), "# README\n");
     writeFile(join(root, "TODO.md"), "- TODO root item\n");
@@ -68,11 +77,17 @@ describe("createTextBundle", () => {
     expect(result.ignoredByGitignore).toBe(1);
     expect(result.ignoredByOutputDirectory).toBe(0);
     expect(result.partsGenerated).toBe(1);
+    expect(result.promptPath).toBe(result.partPaths[0]);
+    expect(result.indexPath).toBe(result.partPaths[0]);
 
-    const index = readFileSync(result.indexPath, "utf8");
+    const output = readFileSync(result.indexPath, "utf8");
+    const index = indexSection(output);
     const part = readFileSync(result.partPaths[0]!, "utf8");
     const prompt = readFileSync(result.promptPath, "utf8");
 
+    expect(part).toContain("# Text Bundle Prompt");
+    expect(part).toContain("# Text Bundle Part 001");
+    expect(part).toContain("# Text Bundle Index");
     expect(index).toContain("`src/main.ts`");
     expect(index).toContain("FIXME");
     expect(index).toContain("`.gitignore`");
@@ -82,7 +97,7 @@ describe("createTextBundle", () => {
     expect(index).not.toContain("ignored.ts");
     expect(part).toContain("### src/main.ts");
     expect(part).toContain("~~~ts");
-    expect(prompt).toContain("text-bundle-999-index.md");
+    expect(prompt).toContain("text-bundle-001.md");
     expect(prompt).toContain("text-bundle-response.md");
   });
 
@@ -92,7 +107,7 @@ describe("createTextBundle", () => {
 
     const result = createTextBundle(bundleOptions(root), new Date(2026, 4, 5, 12, 53));
 
-    const index = readFileSync(result.indexPath, "utf8");
+    const index = indexSection(readFileSync(result.indexPath, "utf8"));
     expect(result.filesSkipped).toBe(1);
     expect(index).toContain("UTF-8");
   });
@@ -142,8 +157,8 @@ describe("createTextBundle", () => {
       maxInputFileBytes: 100,
     }), new Date(2026, 4, 5, 12, 56));
 
-    const index = readFileSync(result.indexPath, "utf8");
-    const part = readFileSync(result.partPaths[0]!, "utf8");
+    const index = indexSection(readFileSync(result.indexPath, "utf8"));
+    const part = partBodySection(readFileSync(result.partPaths[0]!, "utf8"));
     expect(result.filesCollected).toBe(1);
     expect(result.filesSkipped).toBe(1);
     expect(index).toContain("`docs/huge.md`");
@@ -160,7 +175,7 @@ describe("createTextBundle", () => {
     }), new Date(2026, 4, 5, 12, 54));
 
     expect(result.partsGenerated).toBeGreaterThan(1);
-    const index = readFileSync(result.indexPath, "utf8");
+    const index = indexSection(readFileSync(result.indexPath, "utf8"));
     const firstPart = readFileSync(result.partPaths[0]!, "utf8");
     expect(index).toContain("--max-chars");
     expect(firstPart).toContain("This file exceeded the size limit and was split.");
@@ -276,7 +291,7 @@ describe("createTextBundle", () => {
 
     const result = createTextBundle(bundleOptions(root), new Date(2026, 4, 5, 13, 0));
 
-    const index = readFileSync(result.indexPath, "utf8");
+    const index = indexSection(readFileSync(result.indexPath, "utf8"));
     expect(index).toContain("TODO: actionable item");
     expect(index).not.toContain("See TODO.md for project tasks.");
   });
@@ -291,9 +306,8 @@ describe("createTextBundle", () => {
     const prompt = readFileSync(result.promptPath, "utf8");
     expect(prompt).toContain("# Text Bundle Prompt\n");
     expect(prompt).toContain("## Reading Order");
-    expect(prompt).toContain("1. `text-bundle-000-prompt.md`");
-    expect(prompt).toContain("2. `text-bundle-001.md`");
-    expect(prompt).toContain("3. `text-bundle-999-index.md`");
+    expect(prompt).toContain("1. `text-bundle-001.md`");
+    expect(prompt).not.toContain("2. `text-bundle-001.md`");
     expect(prompt).toContain("`Received`");
     expect(prompt).not.toContain("`END_OF_TEXT_BUNDLE`");
     expect(prompt).toContain("## Response File");
@@ -311,15 +325,14 @@ describe("createTextBundle", () => {
       filenamePrefix: "igapyon-skill-compactor-text-bundle",
     }), new Date(2026, 4, 5, 12, 58));
 
-    expect(result.promptPath.endsWith("igapyon-skill-compactor-text-bundle-000-prompt.md")).toBe(true);
+    expect(result.promptPath.endsWith("igapyon-skill-compactor-text-bundle-001.md")).toBe(true);
     expect(result.partPaths.map((path) => basename(path))).toEqual(["igapyon-skill-compactor-text-bundle-001.md"]);
-    expect(result.indexPath.endsWith("igapyon-skill-compactor-text-bundle-999-index.md")).toBe(true);
+    expect(result.indexPath.endsWith("igapyon-skill-compactor-text-bundle-001.md")).toBe(true);
 
     const prompt = readFileSync(result.promptPath, "utf8");
     const index = readFileSync(result.indexPath, "utf8");
-    expect(prompt).toContain("1. `igapyon-skill-compactor-text-bundle-000-prompt.md`");
-    expect(prompt).toContain("2. `igapyon-skill-compactor-text-bundle-001.md`");
-    expect(prompt).toContain("3. `igapyon-skill-compactor-text-bundle-999-index.md`");
+    expect(prompt).toContain("1. `igapyon-skill-compactor-text-bundle-001.md`");
+    expect(prompt).not.toContain("2. `igapyon-skill-compactor-text-bundle-001.md`");
     expect(index).toContain("| `igapyon-skill-compactor-text-bundle-001.md` |");
   });
 
@@ -347,14 +360,16 @@ describe("createTextBundle", () => {
     expect(part).toContain("~~~ts\nconst value = 1;\n\n~~~");
   });
 
-  it("reserves text-bundle-999-index.md for the final index", () => {
+  it("allows text-bundle-999.md as the final compact part", () => {
     const root = makeTempRepo();
     for (let index = 1; index <= 999; index += 1) {
       writeFile(join(root, "src", `file-${String(index).padStart(3, "0")}.txt`), "x");
     }
 
-    expect(() => createTextBundle(bundleOptions(root, {
+    const result = createTextBundle(bundleOptions(root, {
       maxChars: 1,
-    }), new Date(2026, 4, 5, 13, 1))).toThrow("text-bundle-999-index.md is reserved");
+    }), new Date(2026, 4, 5, 13, 1));
+
+    expect(result.partPaths.map((path) => basename(path)).at(-1)).toBe("text-bundle-999.md");
   });
 });

@@ -5,8 +5,8 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
 
 const tempRoots: string[] = [];
-const indexFileName = "text-bundle-999-index.md";
-const promptFileName = "text-bundle-000-prompt.md";
+const indexFileName = "text-bundle-001.md";
+const promptFileName = "text-bundle-001.md";
 const firstPartFileName = "text-bundle-001.md";
 
 function makeTempRepo(): string {
@@ -28,6 +28,11 @@ function runCli(args: string[]): string {
 
 function readOutputFile(outputDirectory: string, fileName: string): string {
   return readFileSync(join(outputDirectory, fileName), "utf8");
+}
+
+function partBodySection(content: string): string {
+  const indexStart = content.indexOf("# Text Bundle Index");
+  return indexStart === -1 ? content : content.slice(0, indexStart);
 }
 
 afterEach(() => {
@@ -82,7 +87,7 @@ describe("CLI subprocess", () => {
     const stdout = runCli(["--input", root, "--output", output, "--max-input-file-bytes", "100"]);
 
     const index = readOutputFile(output, indexFileName);
-    const part = readOutputFile(output, firstPartFileName);
+    const part = partBodySection(readOutputFile(output, firstPartFileName));
     expect(stdout).toContain("completed:");
     expect(index).toContain("`docs/huge.md`");
     expect(index).toContain("100 byte limit");
@@ -103,10 +108,10 @@ describe("CLI subprocess", () => {
       "sample-repo-text-bundle",
     ]);
 
-    expect(stdout).toContain("sample-repo-text-bundle-000-prompt.md");
-    expect(readOutputFile(output, "sample-repo-text-bundle-000-prompt.md")).toContain("sample-repo-text-bundle-999-index.md");
+    expect(stdout).toContain("sample-repo-text-bundle-001.md");
+    expect(readOutputFile(output, "sample-repo-text-bundle-001.md")).toContain("sample-repo-text-bundle-001.md");
     expect(readOutputFile(output, "sample-repo-text-bundle-001.md")).toContain("### README.md");
-    expect(readOutputFile(output, "sample-repo-text-bundle-999-index.md")).toContain("sample-repo-text-bundle-001.md");
+    expect(readOutputFile(output, "sample-repo-text-bundle-001.md")).toContain("# Text Bundle Index");
   });
 
   it("returns a non-zero exit code for an invalid input directory", () => {

@@ -125,7 +125,7 @@ describe("printHelp", () => {
     expect(output).toContain("Default behavior:");
     expect(output).toContain("--filename-prefix text-bundle");
     expect(output).toContain("Generated artifacts:");
-    expect(output).toContain("<prefix>-999-index.md");
+    expect(output).toContain("<prefix>-001.md ... <prefix>-999.md");
     expect(output).toContain("recommended, not required");
     expect(output).toContain("Output and overwrite behavior:");
     expect(output).toContain("stdout is progress/completion text");

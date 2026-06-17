@@ -3,7 +3,7 @@ import { extname, join, relative, resolve } from "node:path";
 import { TextDecoder } from "node:util";
 import { CLI_VERSION } from "./cli.js";
 import { discoverCandidateFiles } from "./discovery.js";
-import { buildIndexMarkdown, buildPartMarkdown, buildPromptMarkdown } from "./markdown.js";
+import { buildPartMarkdown } from "./markdown.js";
 import { parseGitignore } from "./match.js";
 import { getExtension, toPosixPath } from "./path-utils.js";
 import type { BundleChunk, BundlePart, BundleResult, CliOptions, CollectedFile, IgnoreStats, Marker, SkippedFile, SupportedEncoding } from "./types.js";
@@ -24,6 +24,11 @@ type BundlePartsResult = {
   warnings: string[];
 };
 
+type BundlePartReserves = {
+  firstPartChars: number;
+  lastPartChars: number;
+};
+
 type BundleMarkdownWriteParams = {
   outputDirectory: string;
   filenamePrefix: string;
@@ -41,9 +46,11 @@ type BundleMarkdownPaths = {
   partPaths: string[];
 };
 
-const MAX_BUNDLE_PART_NUMBER = 998;
+const MAX_BUNDLE_PART_NUMBER = 999;
 const DEFAULT_FILENAME_PREFIX = "text-bundle";
 const DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
+const EMBEDDED_SECTION_RESERVE_MARGIN_CHARS = 256;
+const EMBEDDED_SECTION_RESERVE_MARGIN_RATIO = 0.1;
 const DEFAULT_ENCODING_OPTIONS = {
   default: "utf-8",
   extensions: {} as Record<string, SupportedEncoding>,
@@ -240,20 +247,16 @@ function splitOversizedFile(file: CollectedFile, maxChars: number): BundleChunk[
 }
 
 function bundlePromptFileName(filenamePrefix: string): string {
-  return `${filenamePrefix}-000-prompt.md`;
+  return `${filenamePrefix}-001.md`;
 }
 
 function bundlePartFileName(filenamePrefix: string, partNumber: number): string {
   return `${filenamePrefix}-${String(partNumber).padStart(3, "0")}.md`;
 }
 
-function bundleIndexFileName(filenamePrefix: string): string {
-  return `${filenamePrefix}-999-index.md`;
-}
-
 function createBundlePart(filenamePrefix: string, partNumber: number, chunks: BundleChunk[], charCount: number): BundlePart {
   if (partNumber > MAX_BUNDLE_PART_NUMBER) {
-    throw new Error(`Part count exceeds ${MAX_BUNDLE_PART_NUMBER}; ${bundleIndexFileName(filenamePrefix)} is reserved for the final index.`);
+    throw new Error(`Part count exceeds ${MAX_BUNDLE_PART_NUMBER}; only three-digit part file names are supported.`);
   }
 
   return {
@@ -262,6 +265,10 @@ function createBundlePart(filenamePrefix: string, partNumber: number, chunks: Bu
     chunks,
     charCount,
   };
+}
+
+function effectiveMaxChars(maxChars: number, reservedChars: number): number {
+  return Math.max(1, maxChars - reservedChars);
 }
 
 function shouldStartNewPart(currentChunks: BundleChunk[], currentChars: number, nextChunk: BundleChunk, maxChars: number): boolean {
@@ -285,7 +292,40 @@ function buildChunks(files: CollectedFile[], maxChars: number): BundleChunksResu
   return { chunks, warnings };
 }
 
-function buildParts(files: CollectedFile[], maxChars: number, filenamePrefix: string): BundlePartsResult {
+function renumberParts(parts: BundlePart[], filenamePrefix: string): BundlePart[] {
+  return parts.map((part, index) => createBundlePart(filenamePrefix, index + 1, part.chunks, part.charCount));
+}
+
+function shrinkLastPartForReserve(parts: BundlePart[], maxChars: number, filenamePrefix: string, lastPartReservedChars: number): BundlePart[] {
+  const lastPartMaxChars = effectiveMaxChars(maxChars, lastPartReservedChars);
+  const adjustedParts = parts.map((part) => ({ ...part, chunks: [...part.chunks] }));
+
+  while (adjustedParts.length > 0) {
+    const lastPart = adjustedParts[adjustedParts.length - 1]!;
+    if (lastPart.charCount <= lastPartMaxChars || lastPart.chunks.length <= 1) {
+      break;
+    }
+
+    const movedChunks: BundleChunk[] = [];
+    let movedCharCount = 0;
+    while (lastPart.charCount > lastPartMaxChars && lastPart.chunks.length > 1) {
+      const movedChunk = lastPart.chunks.pop()!;
+      movedChunks.unshift(movedChunk);
+      movedCharCount += movedChunk.content.length;
+      lastPart.charCount -= movedChunk.content.length;
+    }
+
+    adjustedParts.push(createBundlePart(filenamePrefix, adjustedParts.length + 1, movedChunks, movedCharCount));
+  }
+
+  return renumberParts(adjustedParts, filenamePrefix);
+}
+
+function withReserveSafetyMargin(charCount: number): number {
+  return Math.ceil(charCount * (1 + EMBEDDED_SECTION_RESERVE_MARGIN_RATIO)) + EMBEDDED_SECTION_RESERVE_MARGIN_CHARS;
+}
+
+function buildParts(files: CollectedFile[], maxChars: number, filenamePrefix: string, reserves: BundlePartReserves = { firstPartChars: 0, lastPartChars: 0 }): BundlePartsResult {
   const { chunks, warnings } = buildChunks(files, maxChars);
 
   const parts: BundlePart[] = [];
@@ -302,7 +342,9 @@ function buildParts(files: CollectedFile[], maxChars: number, filenamePrefix: st
   };
 
   for (const chunk of chunks) {
-    if (shouldStartNewPart(currentChunks, currentChars, chunk, maxChars)) {
+    const currentPartNumber = parts.length + 1;
+    const currentMaxChars = effectiveMaxChars(maxChars, currentPartNumber === 1 ? reserves.firstPartChars : 0);
+    if (shouldStartNewPart(currentChunks, currentChars, chunk, currentMaxChars)) {
       pushPart();
     }
     currentChunks.push(chunk);
@@ -310,45 +352,139 @@ function buildParts(files: CollectedFile[], maxChars: number, filenamePrefix: st
   }
 
   pushPart();
-  return { parts, warnings };
+  if (parts.length === 0) {
+    parts.push(createBundlePart(filenamePrefix, 1, [], 0));
+  }
+  return { parts: shrinkLastPartForReserve(parts, maxChars, filenamePrefix, reserves.lastPartChars), warnings };
 }
 
 function writeBundleMarkdownFiles(params: BundleMarkdownWriteParams): BundleMarkdownPaths {
   const { outputDirectory, filenamePrefix, inputDirectory, parts, collectedFiles, skippedFiles, markers, warnings } = params;
-  const indexFileName = bundleIndexFileName(filenamePrefix);
   const promptFileName = bundlePromptFileName(filenamePrefix);
-  const indexPath = join(outputDirectory, indexFileName);
   const promptPath = join(outputDirectory, promptFileName);
   const partPaths = parts.map((part) => join(outputDirectory, part.fileName));
+  const indexFileName = parts.at(-1)?.fileName ?? promptFileName;
+  const indexPath = join(outputDirectory, indexFileName);
 
-  for (const part of parts) {
+  for (const [index, part] of parts.entries()) {
+    const isFirstPart = index === 0;
+    const isLastPart = index === parts.length - 1;
     writeFileSync(join(outputDirectory, part.fileName), buildPartMarkdown(part, {
       toolName: "miku-text-bundle",
       toolVersion: CLI_VERSION,
+    }, {
+      prompt: isFirstPart ? {
+        promptFileName,
+        partFileNames: parts.map((bundlePart) => bundlePart.fileName),
+        indexFileName,
+        toolName: "miku-text-bundle",
+        toolVersion: CLI_VERSION,
+      } : undefined,
+      index: isLastPart ? {
+        inputDirectory: displayPathFromCurrentDirectory(inputDirectory),
+        outputDirectory: displayPathFromCurrentDirectory(outputDirectory),
+        parts,
+        collectedFiles,
+        skippedFiles,
+        markers,
+        warnings,
+        terminalFileName: indexFileName,
+        toolName: "miku-text-bundle",
+        toolVersion: CLI_VERSION,
+      } : undefined,
     }), "utf8");
   }
 
-  writeFileSync(indexPath, buildIndexMarkdown({
-    inputDirectory: displayPathFromCurrentDirectory(inputDirectory),
-    outputDirectory: displayPathFromCurrentDirectory(outputDirectory),
-    parts,
-    collectedFiles,
-    skippedFiles,
-    markers,
-    warnings,
-    toolName: "miku-text-bundle",
-    toolVersion: CLI_VERSION,
-  }), "utf8");
-
-  writeFileSync(promptPath, buildPromptMarkdown({
-    promptFileName,
-    partFileNames: parts.map((part) => part.fileName),
-    indexFileName,
-    toolName: "miku-text-bundle",
-    toolVersion: CLI_VERSION,
-  }), "utf8");
-
   return { indexPath, promptPath, partPaths };
+}
+
+function estimateEmbeddedPromptChars(parts: BundlePart[], filenamePrefix: string): number {
+  const promptFileName = bundlePromptFileName(filenamePrefix);
+  const indexFileName = parts.at(-1)?.fileName ?? promptFileName;
+  const emptyPart = createBundlePart(filenamePrefix, 1, [], 0);
+  const metadata = {
+    toolName: "miku-text-bundle",
+    toolVersion: CLI_VERSION,
+  };
+
+  return buildPartMarkdown(emptyPart, metadata, {
+    prompt: {
+      promptFileName,
+      partFileNames: parts.map((part) => part.fileName),
+      indexFileName,
+      ...metadata,
+    },
+  }).length - buildPartMarkdown(emptyPart, metadata).length;
+}
+
+function estimateEmbeddedIndexChars(params: {
+  filenamePrefix: string;
+  inputDirectory: string;
+  outputDirectory: string;
+  parts: BundlePart[];
+  collectedFiles: CollectedFile[];
+  skippedFiles: SkippedFile[];
+  markers: Marker[];
+  warnings: string[];
+}): number {
+  const { filenamePrefix, inputDirectory, outputDirectory, parts, collectedFiles, skippedFiles, markers, warnings } = params;
+  const lastPartNumber = Math.max(parts.length, 1);
+  const emptyPart = createBundlePart(filenamePrefix, lastPartNumber, [], 0);
+  const metadata = {
+    toolName: "miku-text-bundle",
+    toolVersion: CLI_VERSION,
+  };
+  const terminalFileName = parts.at(-1)?.fileName ?? bundlePromptFileName(filenamePrefix);
+
+  return buildPartMarkdown(emptyPart, metadata, {
+    index: {
+      inputDirectory: displayPathFromCurrentDirectory(inputDirectory),
+      outputDirectory: displayPathFromCurrentDirectory(outputDirectory),
+      parts,
+      collectedFiles,
+      skippedFiles,
+      markers,
+      warnings,
+      terminalFileName,
+      ...metadata,
+    },
+  }).length - buildPartMarkdown(emptyPart, metadata).length;
+}
+
+function buildPartsWithEmbeddedReserves(params: {
+  files: CollectedFile[];
+  maxChars: number;
+  filenamePrefix: string;
+  inputDirectory: string;
+  outputDirectory: string;
+  skippedFiles: SkippedFile[];
+  markers: Marker[];
+}): BundlePartsResult {
+  const { files, maxChars, filenamePrefix, inputDirectory, outputDirectory, skippedFiles, markers } = params;
+  let result = buildParts(files, maxChars, filenamePrefix);
+
+  for (let index = 0; index < 5; index += 1) {
+    const reserves = {
+      firstPartChars: withReserveSafetyMargin(estimateEmbeddedPromptChars(result.parts, filenamePrefix)),
+      lastPartChars: withReserveSafetyMargin(estimateEmbeddedIndexChars({
+        filenamePrefix,
+        inputDirectory,
+        outputDirectory,
+        parts: result.parts,
+        collectedFiles: files,
+        skippedFiles,
+        markers,
+        warnings: result.warnings,
+      })),
+    };
+    const nextResult = buildParts(files, maxChars, filenamePrefix, reserves);
+    if (nextResult.parts.length === result.parts.length) {
+      return nextResult;
+    }
+    result = nextResult;
+  }
+
+  return result;
 }
 
 function printVerboseSummary(files: CollectedFile[], skipped: SkippedFile[], parts: BundlePart[], ignored: IgnoreStats): void {
@@ -363,12 +499,10 @@ function printVerboseSummary(files: CollectedFile[], skipped: SkippedFile[], par
   console.log(`ignoredByOutputDirectory=${ignored.byOutputDirectory}`);
 }
 
-function printGeneratedPaths(promptPath: string, partPaths: string[], indexPath: string): void {
-  console.log(`generated: ${promptPath}`);
+function printGeneratedPaths(partPaths: string[]): void {
   for (const partPath of partPaths) {
     console.log(`generated: ${partPath}`);
   }
-  console.log(`generated: ${indexPath}`);
 }
 
 export function createTextBundle(options: CliOptions, now = new Date()): BundleResult {
@@ -387,7 +521,15 @@ export function createTextBundle(options: CliOptions, now = new Date()): BundleR
   const gitignorePatterns = readRootGitignore(inputPath);
   const { files, skipped, ignored } = collectFiles(inputPath, outputDirectory, options, gitignorePatterns);
   const markers = files.flatMap((file) => file.markers);
-  const { parts, warnings } = buildParts(files, options.maxChars, filenamePrefix);
+  const { parts, warnings } = buildPartsWithEmbeddedReserves({
+    files,
+    maxChars: options.maxChars,
+    filenamePrefix,
+    inputDirectory: inputPath,
+    outputDirectory,
+    skippedFiles: skipped,
+    markers,
+  });
 
   const { indexPath, promptPath, partPaths } = writeBundleMarkdownFiles({
     outputDirectory,
@@ -404,7 +546,7 @@ export function createTextBundle(options: CliOptions, now = new Date()): BundleR
     printVerboseSummary(files, skipped, parts, ignored);
   }
 
-  printGeneratedPaths(promptPath, partPaths, indexPath);
+  printGeneratedPaths(partPaths);
 
   return {
     outputDirectory,

@@ -56,10 +56,10 @@ describe("Markdown golden outputs", () => {
   it("builds stable part Markdown", () => {
     expect(buildPartMarkdown(part, {
       toolName: "miku-text-bundle",
-      toolVersion: "1.0.1",
+      toolVersion: "1.1.0",
     })).toBe(`---
 tool: miku-text-bundle
-version: 1.0.1
+version: 1.1.0
 role: part
 part: 1
 ---
@@ -98,10 +98,10 @@ const value = 1;
     expect(buildIndexMarkdown({
       ...indexParams,
       toolName: "miku-text-bundle",
-      toolVersion: "1.0.1",
+      toolVersion: "1.1.0",
     })).toBe(`---
 tool: miku-text-bundle
-version: 1.0.1
+version: 1.1.0
 role: index
 terminal: true
 ---
@@ -165,14 +165,14 @@ terminal: true
 
   it("builds stable prompt Markdown", () => {
     expect(buildPromptMarkdown({
-      promptFileName: "text-bundle-000-prompt.md",
+      promptFileName: "text-bundle-001.md",
       partFileNames: promptPartFileNames,
-      indexFileName: "text-bundle-999-index.md",
+      indexFileName: "text-bundle-002.md",
       toolName: "miku-text-bundle",
-      toolVersion: "1.0.1",
+      toolVersion: "1.1.0",
     })).toBe(`---
 tool: miku-text-bundle
-version: 1.0.1
+version: 1.1.0
 role: prompt
 ---
 
@@ -184,18 +184,16 @@ The Markdown bundle will be sent in multiple messages in the order listed below.
 
 After each message, do not analyze or summarize the content yet. Reply only with \`Received\`.
 
-Do not start the final response until you receive \`text-bundle-999-index.md\`.
+Do not start the final response until you receive \`text-bundle-002.md\`.
 
 ## Reading Order
 
-1. \`text-bundle-000-prompt.md\`
-2. \`text-bundle-001.md\`
-3. \`text-bundle-002.md\`
-4. \`text-bundle-999-index.md\`
+1. \`text-bundle-001.md\`
+2. \`text-bundle-002.md\`
 
 ## Response File
 
-If you save the final response after \`text-bundle-999-index.md\`, \`text-bundle-response.md\` is the recommended filename.
+If you save the final response after \`text-bundle-002.md\`, \`text-bundle-response.md\` is the recommended filename.
 
 ## Output Format
 

@@ -33,6 +33,7 @@ node dist/main.js --input . --output out --max-chars 120000
 
 CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/igapyon/items/c67f37ffe4d0fd1eed9d) を参照してください。
 
+`v1.1.0` の変更点は [docs/release-notes-v1.1.0.md](docs/release-notes-v1.1.0.md) を参照してください。
 `v1.0.1` の変更点は [docs/release-notes-v1.0.1.md](docs/release-notes-v1.0.1.md) を参照してください。
 `v1.0.0` の変更点は [docs/release-notes-v1.0.0.md](docs/release-notes-v1.0.0.md) を参照してください。
 `v0.9.0` の変更点は [docs/release-notes-v0.9.0.md](docs/release-notes-v0.9.0.md) を参照してください。
@@ -79,7 +80,7 @@ ignoredByOutputDirectory=0
 
 デフォルトでは、入力ディレクトリ配下の通常ファイルを広く収集候補にします。既知のバイナリ拡張子、除外ディレクトリ、`.gitignore` で除外されたファイル、出力ディレクトリ配下のファイルは候補から外します。
 
-既知のバイナリ拡張子に一致したファイルと、除外ディレクトリ配下のファイルは、`text-bundle-999-index.md` の Skipped Files には記録しません。候補に残ったファイルがサイズ上限を超えた場合や、指定文字コードで読めない場合は Skipped Files に理由を記録します。
+既知のバイナリ拡張子に一致したファイルと、除外ディレクトリ配下のファイルは、最終 Part 内の Skipped Files には記録しません。候補に残ったファイルがサイズ上限を超えた場合や、指定文字コードで読めない場合は Skipped Files に理由を記録します。
 
 このツールでは、最初から候補にしないものを ignored、候補に入ったが読み込めなかったものを skipped として扱います。
 
@@ -135,41 +136,41 @@ miku-text-bundle --input . --output out --remove-exclude-directory "dist"
 miku-text-bundle --input . --output out --encoding utf-8 --encoding-extension ".java=shift_jis,.properties=shift_jis"
 ```
 
-対応する文字コードは `utf-8` と `shift_jis` です。文字コードの自動判定は行いません。指定された文字コードとして読めないファイル、またはバイナリと判定したファイルはスキップし、`text-bundle-999-index.md` に理由を記録します。
+対応する文字コードは `utf-8` と `shift_jis` です。文字コードの自動判定は行いません。指定された文字コードとして読めないファイル、またはバイナリと判定したファイルはスキップし、最終 Part に理由を記録します。
 
-単一入力ファイルのデフォルト読み込み上限は `1000000` bytes です。上限を超えるファイルは読み込まずにスキップし、`text-bundle-999-index.md` に理由を記録します。上限は `--max-input-file-bytes` で変更できます。
+単一入力ファイルのデフォルト読み込み上限は `1000000` bytes です。上限を超えるファイルは読み込まずにスキップし、最終 Part に理由を記録します。上限は `--max-input-file-bytes` で変更できます。
 
 ## 出力ファイル
 
 出力先には次の Markdown ファイルを生成します。
 
-- `text-bundle-000-prompt.md`
 - `text-bundle-001.md`, `text-bundle-002.md` 以降の分割 Markdown ファイル
-- `text-bundle-999-index.md`
 
-各 Markdown ファイルの先頭には、生成ツール名、バージョン、ファイルの役割を示す短い YAML front matter を付与します。`text-bundle-000-prompt.md` は `role: prompt`、分割 Markdown ファイルは `role: part`、`text-bundle-999-index.md` は `role: index` です。
+各 Markdown ファイルの先頭には、生成ツール名、バージョン、ファイルの役割を示す短い YAML front matter を付与します。分割 Markdown ファイルは `role: part` です。先頭 Part には `prompt: true`、最終 Part には `terminal: true` を付与します。Part が 1 つだけの場合は、同じファイルに両方を付与します。
 
-`--filename-prefix <prefix>` を指定すると、`text-bundle` の部分を指定した prefix に置き換えます。たとえば `--filename-prefix igapyon-skill-compactor-text-bundle` の場合は、`igapyon-skill-compactor-text-bundle-000-prompt.md`、`igapyon-skill-compactor-text-bundle-001.md`、`igapyon-skill-compactor-text-bundle-999-index.md` を生成します。
+`--filename-prefix <prefix>` を指定すると、`text-bundle` の部分を指定した prefix に置き換えます。たとえば `--filename-prefix igapyon-skill-compactor-text-bundle` の場合は、`igapyon-skill-compactor-text-bundle-001.md` から始まる Part ファイルを生成します。
 
 prefix は前後の空白を除去したうえで、`A-Z`、`a-z`、`0-9`、`.`、`_`、`-` のみを許可します。空文字、パス区切り、改行、制御文字、日本語などを含む値はエラーになります。
 
-`text-bundle-999-index.md` には、出力概要、Part 一覧、スキップされたファイル、警告、抽出した `TODO` / `FIXME` / `XXX` マーカーを記録します。
+最終 Part には、出力概要、Part 一覧、スキップされたファイル、警告、抽出した `TODO` / `FIXME` / `XXX` マーカーを index として記録します。
 
-入力に `SKILL.md` または `skills/<skill-name>/SKILL.md` が含まれる場合、`text-bundle-999-index.md` には Agent Skill 向けの handoff 指示も記録します。この指示は、受信側の生成AIに `SKILL.md` を Agent Skill の一次指示として読み込み、この会話内で参照可能な状態として扱うよう促します。
+入力に `SKILL.md` または `skills/<skill-name>/SKILL.md` が含まれる場合、最終 Part には Agent Skill 向けの handoff 指示も記録します。この指示は、受信側の生成AIに `SKILL.md` を Agent Skill の一次指示として読み込み、この会話内で参照可能な状態として扱うよう促します。
 
 `text-bundle-*.md` には、収集したファイルを `### path/to/file.ts` のような見出しで区切り、本文を backtick code fence で記録します。
 
-`text-bundle-000-prompt.md` には、複数メッセージで生成AIへ貼り付けるための順序、受領手順、終端ファイル `text-bundle-999-index.md`、保存する場合の推奨回答ファイル名 `text-bundle-response.md`、回答形式を記録します。
+先頭 Part には、複数メッセージで生成AIへ貼り付けるための順序、受領手順、終端 Part、保存する場合の推奨回答ファイル名 `text-bundle-response.md`、回答形式を記録します。
 
-生成AI の Web UI に投入する場合、`text-bundle-000-prompt.md` は添付ファイルではなく、最初のメッセージ本文として貼り付ける運用を推奨します。これは、指示文を会話の前提として安定して読ませやすくするための推奨運用であり、UI の仕様や利用状況によっては添付ファイルとして渡してもかまいません。`text-bundle-001.md` 以降の分割 Markdown ファイルと `text-bundle-999-index.md` は、UI の仕様に応じて添付ファイルとして渡せます。
+生成AI の Web UI に投入する場合、`text-bundle-001.md` 冒頭の prompt セクションは、最初のメッセージ本文として貼り付ける運用を推奨します。これは、指示文を会話の前提として安定して読ませやすくするための推奨運用であり、UI の仕様や利用状況によっては Part ファイルとして添付してもかまいません。
 
-読み込み順は `text-bundle-000-prompt.md`、分割 Markdown ファイル、`text-bundle-999-index.md` です。`text-bundle-999-index.md` は最後に読む索引用の予約名であり、このファイルを受け取った時点で Text Bundle の読み込み完了とします。そのため、分割 Markdown ファイルは `text-bundle-001.md` から `text-bundle-998.md` までを上限とします。
+読み込み順は `text-bundle-001.md` から始まる分割 Markdown ファイルの番号順です。最終 Part を受け取った時点で Text Bundle の読み込み完了とします。そのため、分割 Markdown ファイルは `text-bundle-001.md` から `text-bundle-999.md` までを上限とします。
 
 バンドル内の入力ファイル順は、`/` 区切りに正規化した POSIX 相対パスの UTF-16 code unit 昇順です。ロケール照合や numeric sort は使いません。
 
 ## 分割方針
 
 基本的には、ファイル途中では分割せず、ファイル単位で Part に割り当てます。
+
+先頭 Part に同梱する prompt と最終 Part に同梱する index は、`--max-chars` の分割計算時に予約枠として扱います。予約枠には小さな安全マージンを加えるため、先頭 Part と最終 Part の本文量は中間 Part より少なくなることがあります。
 
 ただし、単一ファイルだけで `--max-chars` を超える場合は例外として行単位で分割します。この場合は、Part 本文と index の両方に分割したことを警告として記録します。
 
