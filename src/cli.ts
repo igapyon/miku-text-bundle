@@ -4,7 +4,7 @@ import { compareUtf16CodeUnits, normalizePattern } from "./path-utils.js";
 const CLI_DEFAULT_MAX_CHARS = 120000;
 const CLI_DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
 const CLI_DEFAULT_FILENAME_PREFIX = "text-bundle";
-export const CLI_VERSION = "1.1.1";
+export const CLI_VERSION = "1.2.0";
 const SUPPORTED_ENCODINGS = new Set<SupportedEncoding>(["utf-8", "shift_jis"]);
 export const DEFAULT_EXCLUDE_EXTENSIONS = [
   ".7z",
@@ -82,6 +82,7 @@ type ParseState = {
   excludeExtensions: Set<string>;
   excludeDirectories: Set<string>;
   verbose: boolean;
+  dryRun: boolean;
 };
 
 export class HelpRequestedError extends Error {
@@ -192,6 +193,7 @@ function createParseState(): ParseState {
     excludeExtensions: new Set(DEFAULT_EXCLUDE_EXTENSIONS),
     excludeDirectories: new Set(DEFAULT_EXCLUDE_DIRECTORIES),
     verbose: false,
+    dryRun: false,
   };
 }
 
@@ -277,6 +279,11 @@ function consumeOption(argv: string[], index: number, state: ParseState): number
     return index;
   }
 
+  if (arg === "--dry-run") {
+    state.dryRun = true;
+    return index;
+  }
+
   if (arg.startsWith("-")) {
     throw new Error(`Unknown argument: ${arg}`);
   }
@@ -319,6 +326,7 @@ export function parseArgs(argv: string[]): CliOptions {
     excludeExtensions: [...state.excludeExtensions].sort(compareUtf16CodeUnits),
     excludeDirectories: [...state.excludeDirectories].sort(compareUtf16CodeUnits),
     verbose: state.verbose,
+    dryRun: state.dryRun,
   };
 }
 
@@ -341,7 +349,9 @@ Default behavior:
 Inputs:
   Reads regular files under --input. Skips known binary extensions, default
   excluded directories such as .git, node_modules, dist, coverage, target,
-  workplace, and files ignored by the input root .gitignore.
+  workplace, and files ignored by the input root .gitignore. The .gitignore
+  matcher is simplified: nested .gitignore files and negation patterns are
+  not supported.
 
 Generated artifacts:
   <prefix>-001.md ... <prefix>-999.md
@@ -361,7 +371,7 @@ Diagnostics and exit codes:
 
 Options:
   --filename-prefix <prefix>       File basename prefix. Allowed: A-Z a-z 0-9 . _ -
-  --max-chars <number>             Max approximate characters per part.
+  --max-chars <number>             Max approximate source-content chars per part.
   --max-input-file-bytes <number>  Max bytes read from one input file.
   --encoding utf-8|shift_jis       Default input file encoding.
   --encoding-extension ".java=shift_jis"
@@ -370,6 +380,7 @@ Options:
   --add-exclude-directory "dir"
   --remove-exclude-directory "dir"
   --verbose                        Print ignored-file count details.
+  --dry-run                        Estimate collection and parts without writing files.
 
 Example:
   miku-text-bundle --input . --output out --filename-prefix my-repo-text-bundle

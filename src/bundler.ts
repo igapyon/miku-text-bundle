@@ -398,6 +398,14 @@ function writeBundleMarkdownFiles(params: BundleMarkdownWriteParams): BundleMark
   return { indexPath, promptPath, partPaths };
 }
 
+function plannedBundleMarkdownPaths(outputDirectory: string, filenamePrefix: string, parts: BundlePart[]): BundleMarkdownPaths {
+  const promptFileName = bundlePromptFileName(filenamePrefix);
+  const promptPath = join(outputDirectory, promptFileName);
+  const partPaths = parts.map((part) => join(outputDirectory, part.fileName));
+  const indexPath = join(outputDirectory, parts.at(-1)?.fileName ?? promptFileName);
+  return { indexPath, promptPath, partPaths };
+}
+
 function estimateEmbeddedPromptChars(parts: BundlePart[], filenamePrefix: string): number {
   const promptFileName = bundlePromptFileName(filenamePrefix);
   const indexFileName = parts.at(-1)?.fileName ?? promptFileName;
@@ -516,7 +524,9 @@ export function createTextBundle(options: CliOptions, now = new Date()): BundleR
 
   const outputDirectory = chooseOutputDirectory(options.outputDirectory);
   const filenamePrefix = normalizeFilenamePrefix(options.filenamePrefix ?? DEFAULT_FILENAME_PREFIX);
-  mkdirSync(outputDirectory, { recursive: true });
+  if (!options.dryRun) {
+    mkdirSync(outputDirectory, { recursive: true });
+  }
 
   const gitignorePatterns = readRootGitignore(inputPath);
   const { files, skipped, ignored } = collectFiles(inputPath, outputDirectory, options, gitignorePatterns);
@@ -531,22 +541,26 @@ export function createTextBundle(options: CliOptions, now = new Date()): BundleR
     markers,
   });
 
-  const { indexPath, promptPath, partPaths } = writeBundleMarkdownFiles({
-    outputDirectory,
-    filenamePrefix,
-    inputDirectory: inputPath,
-    parts,
-    collectedFiles: files,
-    skippedFiles: skipped,
-    markers,
-    warnings,
-  });
+  const { indexPath, promptPath, partPaths } = options.dryRun
+    ? plannedBundleMarkdownPaths(outputDirectory, filenamePrefix, parts)
+    : writeBundleMarkdownFiles({
+        outputDirectory,
+        filenamePrefix,
+        inputDirectory: inputPath,
+        parts,
+        collectedFiles: files,
+        skippedFiles: skipped,
+        markers,
+        warnings,
+      });
 
   if (options.verbose) {
     printVerboseSummary(files, skipped, parts, ignored);
   }
 
-  printGeneratedPaths(partPaths);
+  if (!options.dryRun) {
+    printGeneratedPaths(partPaths);
+  }
 
   return {
     outputDirectory,
@@ -563,5 +577,6 @@ export function createTextBundle(options: CliOptions, now = new Date()): BundleR
     ignoredByOutputDirectory: ignored.byOutputDirectory,
     partsGenerated: parts.length,
     warnings,
+    dryRun: options.dryRun ?? false,
   };
 }

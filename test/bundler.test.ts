@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import iconv from "iconv-lite";
@@ -358,6 +358,24 @@ describe("createTextBundle", () => {
     expect(part).toContain("- Source characters: 17");
     expect(part).toContain("- Source lines: 2");
     expect(part).toContain("~~~ts\nconst value = 1;\n\n~~~");
+  });
+
+  it("does not create output files in dry-run mode", () => {
+    const root = makeTempRepo();
+    const outputDirectory = join(root, "out");
+    writeFile(join(root, "README.md"), "# README\n");
+    writeFile(join(root, "src", "main.ts"), "const value = 1;\n");
+
+    const result = createTextBundle(bundleOptions(root, {
+      outputDirectory,
+      dryRun: true,
+    }), new Date(2026, 4, 5, 13, 3));
+
+    expect(result.dryRun).toBe(true);
+    expect(result.filesCollected).toBe(2);
+    expect(result.partsGenerated).toBe(1);
+    expect(result.partPaths).toEqual([join(outputDirectory, "text-bundle-001.md")]);
+    expect(existsSync(outputDirectory)).toBe(false);
   });
 
   it("allows text-bundle-999.md as the final compact part", () => {
