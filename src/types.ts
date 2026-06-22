@@ -15,6 +15,7 @@ export type CliOptions = {
   excludeExtensions?: string[];
   excludeDirectories?: string[];
   verbose: boolean;
+  dryRun?: boolean;
 };
 
 export type CollectedFile = {
@@ -81,4 +82,5 @@ export type BundleResult = {
   ignoredByOutputDirectory: number;
   partsGenerated: number;
   warnings: string[];
+  dryRun: boolean;
 };

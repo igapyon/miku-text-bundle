@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -112,6 +112,22 @@ describe("CLI subprocess", () => {
     expect(readOutputFile(output, "sample-repo-text-bundle-001.md")).toContain("sample-repo-text-bundle-001.md");
     expect(readOutputFile(output, "sample-repo-text-bundle-001.md")).toContain("### README.md");
     expect(readOutputFile(output, "sample-repo-text-bundle-001.md")).toContain("# Text Bundle Index");
+  });
+
+  it("estimates collection without writing files in dry-run mode", () => {
+    const root = makeTempRepo();
+    const output = join(root, "out");
+    writeFile(join(root, "README.md"), "# README\n");
+    writeFile(join(root, "src", "main.ts"), "const value = 1;\n");
+
+    const stdout = runCli(["--input", root, "--output", output, "--dry-run"]);
+
+    expect(stdout).toContain("dry-run:");
+    expect(stdout).toContain("1 part(s)");
+    expect(stdout).toContain("2 file(s) collected");
+    expect(stdout).toContain("no files written");
+    expect(stdout).not.toContain("generated:");
+    expect(existsSync(output)).toBe(false);
   });
 
   it("returns a non-zero exit code for an invalid input directory", () => {

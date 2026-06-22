@@ -4,7 +4,7 @@ import { CLI_VERSION, HelpRequestedError, parseArgs, printHelp, printVersion, Ve
 
 describe("parseArgs", () => {
   it("parses required directories and options", () => {
-    expect(parseArgs(["--input", ".", "--output", "out", "--max-chars", "1000", "--max-input-file-bytes", "2000", "--verbose"])).toMatchObject({
+    expect(parseArgs(["--input", ".", "--output", "out", "--max-chars", "1000", "--max-input-file-bytes", "2000", "--verbose", "--dry-run"])).toMatchObject({
       inputDirectory: ".",
       outputDirectory: "out",
       filenamePrefix: "text-bundle",
@@ -15,6 +15,7 @@ describe("parseArgs", () => {
         extensions: {},
       },
       verbose: true,
+      dryRun: true,
     });
   });
 
@@ -135,12 +136,16 @@ describe("printHelp", () => {
     expect(output).toContain("the final part index. Invalid usage");
     expect(output).toContain("Exit code 0 means success/help/version");
     expect(output).toContain("--max-chars");
+    expect(output).toContain("source-content chars per part");
+    expect(output).toContain("matcher is simplified");
+    expect(output).toContain("nested .gitignore files and negation patterns");
     expect(output).toContain("--filename-prefix");
     expect(output).toContain("--max-input-file-bytes");
     expect(output).toContain("--encoding");
     expect(output).toContain("--encoding-extension");
     expect(output).toContain("--add-exclude-extension");
     expect(output).toContain("--remove-exclude-directory");
+    expect(output).toContain("--dry-run");
     expect(output).toContain("--version");
   });
 });

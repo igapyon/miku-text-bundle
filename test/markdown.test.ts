@@ -94,6 +94,25 @@ const value = 1;
     })).toContain("~~~~ts\n~~~md\ninside\n~~~\n\n~~~~");
   });
 
+  it("separates later file chunks with a horizontal rule", () => {
+    expect(buildPartMarkdown({
+      ...part,
+      charCount: 32,
+      chunks: [
+        part.chunks[0]!,
+        {
+          relativePath: "docs/guide/setup.md",
+          extension: "md",
+          content: "# Setup\n",
+          originalCharCount: 8,
+          originalLineCount: 2,
+          chunkIndex: 1,
+          chunkCount: 1,
+        },
+      ],
+    })).toContain("~~~\n\n---\n\n### docs/guide/setup.md");
+  });
+
   it("builds stable index Markdown", () => {
     expect(buildIndexMarkdown({
       ...indexParams,

@@ -33,6 +33,7 @@ node dist/main.js --input . --output out --max-chars 120000
 
 CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/igapyon/items/c67f37ffe4d0fd1eed9d) を参照してください。
 
+`v1.2.0` の変更点は [docs/release-notes-v1.2.0.md](docs/release-notes-v1.2.0.md) を参照してください。
 `v1.1.0` の変更点は [docs/release-notes-v1.1.0.md](docs/release-notes-v1.1.0.md) を参照してください。
 `v1.0.1` の変更点は [docs/release-notes-v1.0.1.md](docs/release-notes-v1.0.1.md) を参照してください。
 `v1.0.0` の変更点は [docs/release-notes-v1.0.0.md](docs/release-notes-v1.0.0.md) を参照してください。
@@ -45,7 +46,7 @@ CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/i
 - `--input <dir>`: 入力ディレクトリを指定する。
 - `--output <dir>`: 出力ディレクトリを指定する。
 - `--filename-prefix <prefix>`: 生成する Markdown ファイル名の prefix を指定する。デフォルトは `text-bundle`。
-- `--max-chars <number>`: バンドル Part ごとの最大文字数を指定する。デフォルトは `120000`。
+- `--max-chars <number>`: バンドル Part ごとのソース本文文字数の近似上限を指定する。デフォルトは `120000`。
 - `--max-input-file-bytes <number>`: 単一入力ファイルの最大読み込み bytes を指定する。デフォルトは `1000000`。
 - `--encoding utf-8|shift_jis`: 入力ファイルのデフォルト文字コードを指定する。デフォルトは `utf-8`。
 - `--encoding-extension ".java=shift_jis"`: 拡張子ごとの文字コードを指定する。カンマ区切りで複数指定できます。
@@ -53,6 +54,7 @@ CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/i
 - `--remove-exclude-extension ".ext"`: 除外拡張子リストから拡張子を削除する。カンマ区切りで複数指定できます。
 - `--add-exclude-directory "dir"`: 除外ディレクトリリストにディレクトリを追加する。カンマ区切りで複数指定できます。
 - `--remove-exclude-directory "dir"`: 除外ディレクトリリストからディレクトリを削除する。カンマ区切りで複数指定できます。
+- `--dry-run`: 出力ファイルを書き込まず、収集数、スキップ数、無視数、推定 Part 数だけを確認する。
 - `--verbose`: 収集数、スキップ数、Part 数、無視したファイルの内訳を標準出力に表示する。
 - `--help`: ヘルプを表示する。
 - `--version`: バージョンを表示する。
@@ -62,6 +64,8 @@ CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/i
 ```text
 completed: 3 part(s), 128 file(s) collected, 4 file(s) skipped, 12 directories ignored, 245 file(s) ignored
 ```
+
+`--dry-run` を指定した場合は、出力ディレクトリを作成せず、Markdown ファイルも書き込みません。`--output` は、出力先が入力配下にある場合の自己除外判定と予定ファイル名の見積もりに使うため、dry-run でも必須です。
 
 `--verbose` を指定すると、無視したファイル数の内訳も表示します。
 
@@ -88,7 +92,7 @@ ignoredByOutputDirectory=0
 
 入力ディレクトリ直下の `.gitignore` を読み、収集対象から除外します。
 
-現在の `.gitignore` 判定は、このツールが必要とする範囲に絞った実装です。Git 本体の ignore 仕様と完全互換ではありません。詳細は [docs/gitignore-limitations.md](docs/gitignore-limitations.md) を参照してください。
+現在の `.gitignore` 判定は、このツールが必要とする範囲に絞った簡易実装です。入力ディレクトリ直下の `.gitignore` のみを読み、サブディレクトリの `.gitignore` と `!file.txt` のような否定パターンには対応しません。Git 本体の ignore 仕様と完全互換ではありません。詳細は [docs/gitignore-limitations.md](docs/gitignore-limitations.md) を参照してください。
 
 デフォルト除外ディレクトリは次の通りです。
 
@@ -169,6 +173,8 @@ prefix は前後の空白を除去したうえで、`A-Z`、`a-z`、`0-9`、`.`�
 ## 分割方針
 
 基本的には、ファイル途中では分割せず、ファイル単位で Part に割り当てます。
+
+`--max-chars` は、生成 Markdown ファイル全体の厳密な最大文字数ではなく、Part ごとのソース本文文字数の近似上限です。見出し、code fence、先頭 Part に同梱する prompt、最終 Part に同梱する index などのメタデータ分は追加されます。
 
 先頭 Part に同梱する prompt と最終 Part に同梱する index は、`--max-chars` の分割計算時に予約枠として扱います。予約枠には小さな安全マージンを加えるため、先頭 Part と最終 Part の本文量は中間 Part より少なくなることがあります。
 

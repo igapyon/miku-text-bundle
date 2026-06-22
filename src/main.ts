@@ -49,7 +49,9 @@ export function main(): void {
   try {
     const options = parseArgs(process.argv.slice(2));
     const result = createTextBundle(options);
-    console.log(`completed: ${result.partsGenerated} part(s), ${result.filesCollected} file(s) collected, ${result.filesSkipped} file(s) skipped, ${result.directoriesIgnored} directories ignored, ${result.filesIgnored} file(s) ignored`);
+    const prefix = result.dryRun ? "dry-run" : "completed";
+    const suffix = result.dryRun ? ", no files written" : "";
+    console.log(`${prefix}: ${result.partsGenerated} part(s), ${result.filesCollected} file(s) collected, ${result.filesSkipped} file(s) skipped, ${result.directoriesIgnored} directories ignored, ${result.filesIgnored} file(s) ignored${suffix}`);
   } catch (error) {
     if (error instanceof HelpRequestedError) {
       printHelp();

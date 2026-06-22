@@ -209,7 +209,11 @@ export function buildPartMarkdown(part: BundlePart, metadata: TextBundleMetadata
     "",
   ];
 
-  for (const chunk of part.chunks) {
+  for (const [index, chunk] of part.chunks.entries()) {
+    if (index > 0) {
+      lines.push("---");
+      lines.push("");
+    }
     lines.push(...buildChunkMarkdown(chunk));
   }
 
