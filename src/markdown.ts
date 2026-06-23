@@ -187,6 +187,7 @@ type PromptMarkdownParams = {
 type PartMarkdownOptions = {
   prompt?: PromptMarkdownParams;
   index?: IndexMarkdownParams;
+  acknowledgeOnly?: boolean;
 };
 
 export function buildPartMarkdown(part: BundlePart, metadata: TextBundleMetadata = {}, options: PartMarkdownOptions = {}): string {
@@ -221,7 +222,20 @@ export function buildPartMarkdown(part: BundlePart, metadata: TextBundleMetadata
     lines.push(...buildIndexMarkdownLines(options.index, false));
   }
 
+  if (options.acknowledgeOnly) {
+    lines.push(...buildAcknowledgementFooterLines());
+  }
+
   return markdown(lines);
+}
+
+function buildAcknowledgementFooterLines(): string[] {
+  return [
+    "## Acknowledgement",
+    "",
+    "After reading this Part, do not analyze or summarize the content yet. Reply only with `OK`.",
+    "",
+  ];
 }
 
 function buildIndexMarkdownLines(params: IndexMarkdownParams, includeFrontMatter: boolean): string[] {
@@ -286,7 +300,7 @@ function buildPromptMarkdownLines(params: PromptMarkdownParams, includeFrontMatt
     "",
     "The Markdown bundle will be sent in multiple messages in the order listed below.",
     "",
-    "After each message, do not analyze or summarize the content yet. Reply only with `Received`.",
+    "After each non-terminal Part, do not analyze or summarize the content yet. Reply only with `OK`.",
     "",
     `Do not start the final response until you receive \`${indexFileName}\`.`,
     "",

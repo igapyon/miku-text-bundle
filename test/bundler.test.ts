@@ -43,6 +43,10 @@ function partBodySection(content: string): string {
   return indexStart === -1 ? content : content.slice(0, indexStart);
 }
 
+function readGeneratedParts(paths: string[]): string[] {
+  return paths.map((path) => readFileSync(path, "utf8"));
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   for (const root of tempRoots.splice(0)) {
@@ -308,12 +312,42 @@ describe("createTextBundle", () => {
     expect(prompt).toContain("## Reading Order");
     expect(prompt).toContain("1. `text-bundle-001.md`");
     expect(prompt).not.toContain("2. `text-bundle-001.md`");
-    expect(prompt).toContain("`Received`");
+    expect(prompt).toContain("`OK`");
     expect(prompt).not.toContain("`END_OF_TEXT_BUNDLE`");
     expect(prompt).toContain("## Response File");
     expect(prompt).toContain("`text-bundle-response.md`");
     expect(prompt).toContain("## Output Format");
     expect(prompt).toContain("~~~~");
+  });
+
+  it("keeps generated Markdown parts under the practical registration limit when many small files add overhead", () => {
+    const root = makeTempRepo();
+    for (let index = 1; index <= 1800; index += 1) {
+      writeFile(join(root, "src", `module-${String(index).padStart(4, "0")}.ts`), `export const value${index} = ${index};\n`);
+    }
+
+    const result = createTextBundle(bundleOptions(root), new Date(2026, 4, 5, 13, 4));
+    const parts = readGeneratedParts(result.partPaths);
+
+    expect(result.partsGenerated).toBeGreaterThan(2);
+    expect(parts.every((part) => part.length <= 128000)).toBe(true);
+  });
+
+  it("adds acknowledgement-only footers to non-terminal parts", () => {
+    const root = makeTempRepo();
+    writeFile(join(root, "a.txt"), "a\n");
+    writeFile(join(root, "b.txt"), "b\n");
+
+    const result = createTextBundle(bundleOptions(root, {
+      maxChars: 2,
+    }), new Date(2026, 4, 5, 13, 5));
+
+    const parts = readGeneratedParts(result.partPaths);
+    expect(parts).toHaveLength(2);
+    expect(parts[0]).toContain("## Acknowledgement");
+    expect(parts[0]).toContain("Reply only with `OK`.");
+    expect(parts[1]).not.toContain("## Acknowledgement");
+    expect(parts[1]).toContain("# Text Bundle Index");
   });
 
   it("uses a custom filename prefix for generated bundle files", () => {

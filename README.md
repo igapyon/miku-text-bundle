@@ -33,6 +33,7 @@ node dist/main.js --input . --output out --max-chars 120000
 
 CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/igapyon/items/c67f37ffe4d0fd1eed9d) を参照してください。
 
+`v1.3.0` の変更点は [docs/release-notes-v1.3.0.md](docs/release-notes-v1.3.0.md) を参照してください。
 `v1.2.0` の変更点は [docs/release-notes-v1.2.0.md](docs/release-notes-v1.2.0.md) を参照してください。
 `v1.1.0` の変更点は [docs/release-notes-v1.1.0.md](docs/release-notes-v1.1.0.md) を参照してください。
 `v1.0.1` の変更点は [docs/release-notes-v1.0.1.md](docs/release-notes-v1.0.1.md) を参照してください。
