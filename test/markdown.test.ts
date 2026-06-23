@@ -201,7 +201,7 @@ This is the reading instruction for a Text Bundle that packages a set of files f
 
 The Markdown bundle will be sent in multiple messages in the order listed below.
 
-After each message, do not analyze or summarize the content yet. Reply only with \`Received\`.
+After each non-terminal Part, do not analyze or summarize the content yet. Reply only with \`OK\`.
 
 Do not start the final response until you receive \`text-bundle-002.md\`.
 

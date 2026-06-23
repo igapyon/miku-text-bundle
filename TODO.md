@@ -16,7 +16,8 @@
 - CLI bundle smoke test covers `bundle/miku-text-bundle.mjs` bundle generation.
 - `.gitignore` matcher limitations are documented in `docs/gitignore-limitations.md`.
 - Golden output tests cover representative prompt, Part, and index Markdown.
-- `text-bundle-001.md` embeds the prompt workflow with `Received` acknowledgements, and the final Part embeds the terminal index.
+- `text-bundle-001.md` embeds the prompt workflow with `OK` acknowledgements for non-terminal Parts, and the final Part embeds the terminal index.
+- Generated Part Markdown is render-checked against a practical 128000 character registration limit so prompt, index, metadata, heading, fence, and per-file overhead do not overflow intermediate or final Parts.
 - `--filename-prefix` can replace the generated Markdown file basename prefix while preserving the default `text-bundle` names when omitted.
 - If the input contains `SKILL.md` or `skills/<skill-name>/SKILL.md`, the final Part index always includes Agent Skill handoff guidance.
 

@@ -4,7 +4,7 @@ import { compareUtf16CodeUnits, normalizePattern } from "./path-utils.js";
 const CLI_DEFAULT_MAX_CHARS = 120000;
 const CLI_DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
 const CLI_DEFAULT_FILENAME_PREFIX = "text-bundle";
-export const CLI_VERSION = "1.2.0";
+export const CLI_VERSION = "1.3.0";
 const SUPPORTED_ENCODINGS = new Set<SupportedEncoding>(["utf-8", "shift_jis"]);
 export const DEFAULT_EXCLUDE_EXTENSIONS = [
   ".7z",

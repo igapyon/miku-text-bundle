@@ -40,6 +40,8 @@ type BundleMarkdownWriteParams = {
   warnings: string[];
 };
 
+type BundleMarkdownRenderParams = BundleMarkdownWriteParams;
+
 type BundleMarkdownPaths = {
   indexPath: string;
   promptPath: string;
@@ -47,6 +49,7 @@ type BundleMarkdownPaths = {
 };
 
 const MAX_BUNDLE_PART_NUMBER = 999;
+const PRACTICAL_MARKDOWN_PART_CHAR_LIMIT = 128_000;
 const DEFAULT_FILENAME_PREFIX = "text-bundle";
 const DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
 const EMBEDDED_SECTION_RESERVE_MARGIN_CHARS = 256;
@@ -254,7 +257,11 @@ function bundlePartFileName(filenamePrefix: string, partNumber: number): string 
   return `${filenamePrefix}-${String(partNumber).padStart(3, "0")}.md`;
 }
 
-function createBundlePart(filenamePrefix: string, partNumber: number, chunks: BundleChunk[], charCount: number): BundlePart {
+function chunksCharCount(chunks: BundleChunk[]): number {
+  return chunks.reduce((total, chunk) => total + chunk.content.length, 0);
+}
+
+function createBundlePart(filenamePrefix: string, partNumber: number, chunks: BundleChunk[], charCount = chunksCharCount(chunks)): BundlePart {
   if (partNumber > MAX_BUNDLE_PART_NUMBER) {
     throw new Error(`Part count exceeds ${MAX_BUNDLE_PART_NUMBER}; only three-digit part file names are supported.`);
   }
@@ -293,7 +300,7 @@ function buildChunks(files: CollectedFile[], maxChars: number): BundleChunksResu
 }
 
 function renumberParts(parts: BundlePart[], filenamePrefix: string): BundlePart[] {
-  return parts.map((part, index) => createBundlePart(filenamePrefix, index + 1, part.chunks, part.charCount));
+  return parts.map((part, index) => createBundlePart(filenamePrefix, index + 1, part.chunks));
 }
 
 function shrinkLastPartForReserve(parts: BundlePart[], maxChars: number, filenamePrefix: string, lastPartReservedChars: number): BundlePart[] {
@@ -358,8 +365,84 @@ function buildParts(files: CollectedFile[], maxChars: number, filenamePrefix: st
   return { parts: shrinkLastPartForReserve(parts, maxChars, filenamePrefix, reserves.lastPartChars), warnings };
 }
 
+function buildRenderedPartMarkdown(params: BundleMarkdownRenderParams, partIndex: number): string {
+  const { filenamePrefix, inputDirectory, outputDirectory, parts, collectedFiles, skippedFiles, markers, warnings } = params;
+  const part = parts[partIndex]!;
+  const promptFileName = bundlePromptFileName(filenamePrefix);
+  const indexFileName = parts.at(-1)?.fileName ?? promptFileName;
+  const isFirstPart = partIndex === 0;
+  const isLastPart = partIndex === parts.length - 1;
+  const metadata = {
+    toolName: "miku-text-bundle",
+    toolVersion: CLI_VERSION,
+  };
+
+  return buildPartMarkdown(part, metadata, {
+    prompt: isFirstPart ? {
+      promptFileName,
+      partFileNames: parts.map((bundlePart) => bundlePart.fileName),
+      indexFileName,
+      ...metadata,
+    } : undefined,
+    index: isLastPart ? {
+      inputDirectory: displayPathFromCurrentDirectory(inputDirectory),
+      outputDirectory: displayPathFromCurrentDirectory(outputDirectory),
+      parts,
+      collectedFiles,
+      skippedFiles,
+      markers,
+      warnings,
+      terminalFileName: indexFileName,
+      ...metadata,
+    } : undefined,
+    acknowledgeOnly: !isLastPart,
+  });
+}
+
+function ensureRenderedPartLimit(params: BundleMarkdownRenderParams): BundlePart[] {
+  let adjustedParts = renumberParts(params.parts.map((part) => ({ ...part, chunks: [...part.chunks] })), params.filenamePrefix);
+  let remainingMoves = Math.max(1, adjustedParts.reduce((total, part) => total + part.chunks.length, 0) + MAX_BUNDLE_PART_NUMBER);
+
+  while (remainingMoves > 0) {
+    const renderParams = { ...params, parts: adjustedParts };
+    const overflowIndex = adjustedParts.findIndex((_, partIndex) => buildRenderedPartMarkdown(renderParams, partIndex).length > PRACTICAL_MARKDOWN_PART_CHAR_LIMIT);
+    if (overflowIndex === -1) {
+      return adjustedParts;
+    }
+
+    const overflowPart = adjustedParts[overflowIndex]!;
+    const isLastPart = overflowIndex === adjustedParts.length - 1;
+
+    if (overflowPart.chunks.length === 0) {
+      throw new Error(`Generated Markdown for ${overflowPart.fileName} exceeds ${PRACTICAL_MARKDOWN_PART_CHAR_LIMIT} characters even without file chunks.`);
+    }
+
+    if (overflowPart.chunks.length === 1 && !isLastPart) {
+      throw new Error(`Generated Markdown for ${overflowPart.fileName} exceeds ${PRACTICAL_MARKDOWN_PART_CHAR_LIMIT} characters with a single file chunk.`);
+    }
+
+    if (overflowPart.chunks.length === 1 && isLastPart) {
+      adjustedParts.push(createBundlePart(params.filenamePrefix, adjustedParts.length + 1, []));
+      adjustedParts = renumberParts(adjustedParts, params.filenamePrefix);
+      remainingMoves -= 1;
+      continue;
+    }
+
+    const movedChunk = overflowPart.chunks.pop()!;
+    if (isLastPart) {
+      adjustedParts.push(createBundlePart(params.filenamePrefix, adjustedParts.length + 1, [movedChunk]));
+    } else {
+      adjustedParts[overflowIndex + 1]!.chunks.unshift(movedChunk);
+    }
+    adjustedParts = renumberParts(adjustedParts, params.filenamePrefix);
+    remainingMoves -= 1;
+  }
+
+  throw new Error(`Unable to keep generated Markdown parts under ${PRACTICAL_MARKDOWN_PART_CHAR_LIMIT} characters.`);
+}
+
 function writeBundleMarkdownFiles(params: BundleMarkdownWriteParams): BundleMarkdownPaths {
-  const { outputDirectory, filenamePrefix, inputDirectory, parts, collectedFiles, skippedFiles, markers, warnings } = params;
+  const { outputDirectory, filenamePrefix, parts } = params;
   const promptFileName = bundlePromptFileName(filenamePrefix);
   const promptPath = join(outputDirectory, promptFileName);
   const partPaths = parts.map((part) => join(outputDirectory, part.fileName));
@@ -367,32 +450,7 @@ function writeBundleMarkdownFiles(params: BundleMarkdownWriteParams): BundleMark
   const indexPath = join(outputDirectory, indexFileName);
 
   for (const [index, part] of parts.entries()) {
-    const isFirstPart = index === 0;
-    const isLastPart = index === parts.length - 1;
-    writeFileSync(join(outputDirectory, part.fileName), buildPartMarkdown(part, {
-      toolName: "miku-text-bundle",
-      toolVersion: CLI_VERSION,
-    }, {
-      prompt: isFirstPart ? {
-        promptFileName,
-        partFileNames: parts.map((bundlePart) => bundlePart.fileName),
-        indexFileName,
-        toolName: "miku-text-bundle",
-        toolVersion: CLI_VERSION,
-      } : undefined,
-      index: isLastPart ? {
-        inputDirectory: displayPathFromCurrentDirectory(inputDirectory),
-        outputDirectory: displayPathFromCurrentDirectory(outputDirectory),
-        parts,
-        collectedFiles,
-        skippedFiles,
-        markers,
-        warnings,
-        terminalFileName: indexFileName,
-        toolName: "miku-text-bundle",
-        toolVersion: CLI_VERSION,
-      } : undefined,
-    }), "utf8");
+    writeFileSync(join(outputDirectory, part.fileName), buildRenderedPartMarkdown(params, index), "utf8");
   }
 
   return { indexPath, promptPath, partPaths };
@@ -487,12 +545,36 @@ function buildPartsWithEmbeddedReserves(params: {
     };
     const nextResult = buildParts(files, maxChars, filenamePrefix, reserves);
     if (nextResult.parts.length === result.parts.length) {
-      return nextResult;
+      return {
+        parts: ensureRenderedPartLimit({
+          outputDirectory,
+          filenamePrefix,
+          inputDirectory,
+          parts: nextResult.parts,
+          collectedFiles: files,
+          skippedFiles,
+          markers,
+          warnings: nextResult.warnings,
+        }),
+        warnings: nextResult.warnings,
+      };
     }
     result = nextResult;
   }
 
-  return result;
+  return {
+    parts: ensureRenderedPartLimit({
+      outputDirectory,
+      filenamePrefix,
+      inputDirectory,
+      parts: result.parts,
+      collectedFiles: files,
+      skippedFiles,
+      markers,
+      warnings: result.warnings,
+    }),
+    warnings: result.warnings,
+  };
 }
 
 function printVerboseSummary(files: CollectedFile[], skipped: SkippedFile[], parts: BundlePart[], ignored: IgnoreStats): void {
