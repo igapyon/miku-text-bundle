@@ -320,7 +320,7 @@ describe("createTextBundle", () => {
     expect(prompt).toContain("~~~~");
   });
 
-  it("keeps generated Markdown parts under the practical registration limit when many small files add overhead", () => {
+  it("does not impose a rendered Markdown character limit when many small files add overhead", () => {
     const root = makeTempRepo();
     for (let index = 1; index <= 1800; index += 1) {
       writeFile(join(root, "src", `module-${String(index).padStart(4, "0")}.ts`), `export const value${index} = ${index};\n`);
@@ -329,8 +329,8 @@ describe("createTextBundle", () => {
     const result = createTextBundle(bundleOptions(root), new Date(2026, 4, 5, 13, 4));
     const parts = readGeneratedParts(result.partPaths);
 
-    expect(result.partsGenerated).toBeGreaterThan(2);
-    expect(parts.every((part) => part.length <= 128000)).toBe(true);
+    expect(result.partsGenerated).toBe(1);
+    expect(parts[0]!.length).toBeGreaterThan(128000);
   });
 
   it("adds acknowledgement-only footers to non-terminal parts", () => {

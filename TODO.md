@@ -17,7 +17,7 @@
 - `.gitignore` matcher limitations are documented in `docs/gitignore-limitations.md`.
 - Golden output tests cover representative prompt, Part, and index Markdown.
 - `text-bundle-001.md` embeds the prompt workflow with `OK` acknowledgements for non-terminal Parts, and the final Part embeds the terminal index.
-- Generated Part Markdown is render-checked against a practical 128000 character registration limit so prompt, index, metadata, heading, fence, and per-file overhead do not overflow intermediate or final Parts.
+- Generated Markdown Part has no fixed rendered-character limit; splitting is based on the approximate source-content limit set by `--max-chars`.
 - `--filename-prefix` can replace the generated Markdown file basename prefix while preserving the default `text-bundle` names when omitted.
 - If the input contains `SKILL.md` or `skills/<skill-name>/SKILL.md`, the final Part index always includes Agent Skill handoff guidance.
 

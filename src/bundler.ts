@@ -49,7 +49,6 @@ type BundleMarkdownPaths = {
 };
 
 const MAX_BUNDLE_PART_NUMBER = 999;
-const PRACTICAL_MARKDOWN_PART_CHAR_LIMIT = 128_000;
 const DEFAULT_FILENAME_PREFIX = "text-bundle";
 const DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
 const EMBEDDED_SECTION_RESERVE_MARGIN_CHARS = 256;
@@ -399,48 +398,6 @@ function buildRenderedPartMarkdown(params: BundleMarkdownRenderParams, partIndex
   });
 }
 
-function ensureRenderedPartLimit(params: BundleMarkdownRenderParams): BundlePart[] {
-  let adjustedParts = renumberParts(params.parts.map((part) => ({ ...part, chunks: [...part.chunks] })), params.filenamePrefix);
-  let remainingMoves = Math.max(1, adjustedParts.reduce((total, part) => total + part.chunks.length, 0) + MAX_BUNDLE_PART_NUMBER);
-
-  while (remainingMoves > 0) {
-    const renderParams = { ...params, parts: adjustedParts };
-    const overflowIndex = adjustedParts.findIndex((_, partIndex) => buildRenderedPartMarkdown(renderParams, partIndex).length > PRACTICAL_MARKDOWN_PART_CHAR_LIMIT);
-    if (overflowIndex === -1) {
-      return adjustedParts;
-    }
-
-    const overflowPart = adjustedParts[overflowIndex]!;
-    const isLastPart = overflowIndex === adjustedParts.length - 1;
-
-    if (overflowPart.chunks.length === 0) {
-      throw new Error(`Generated Markdown for ${overflowPart.fileName} exceeds ${PRACTICAL_MARKDOWN_PART_CHAR_LIMIT} characters even without file chunks.`);
-    }
-
-    if (overflowPart.chunks.length === 1 && !isLastPart) {
-      throw new Error(`Generated Markdown for ${overflowPart.fileName} exceeds ${PRACTICAL_MARKDOWN_PART_CHAR_LIMIT} characters with a single file chunk.`);
-    }
-
-    if (overflowPart.chunks.length === 1 && isLastPart) {
-      adjustedParts.push(createBundlePart(params.filenamePrefix, adjustedParts.length + 1, []));
-      adjustedParts = renumberParts(adjustedParts, params.filenamePrefix);
-      remainingMoves -= 1;
-      continue;
-    }
-
-    const movedChunk = overflowPart.chunks.pop()!;
-    if (isLastPart) {
-      adjustedParts.push(createBundlePart(params.filenamePrefix, adjustedParts.length + 1, [movedChunk]));
-    } else {
-      adjustedParts[overflowIndex + 1]!.chunks.unshift(movedChunk);
-    }
-    adjustedParts = renumberParts(adjustedParts, params.filenamePrefix);
-    remainingMoves -= 1;
-  }
-
-  throw new Error(`Unable to keep generated Markdown parts under ${PRACTICAL_MARKDOWN_PART_CHAR_LIMIT} characters.`);
-}
-
 function writeBundleMarkdownFiles(params: BundleMarkdownWriteParams): BundleMarkdownPaths {
   const { outputDirectory, filenamePrefix, parts } = params;
   const promptFileName = bundlePromptFileName(filenamePrefix);
@@ -546,16 +503,7 @@ function buildPartsWithEmbeddedReserves(params: {
     const nextResult = buildParts(files, maxChars, filenamePrefix, reserves);
     if (nextResult.parts.length === result.parts.length) {
       return {
-        parts: ensureRenderedPartLimit({
-          outputDirectory,
-          filenamePrefix,
-          inputDirectory,
-          parts: nextResult.parts,
-          collectedFiles: files,
-          skippedFiles,
-          markers,
-          warnings: nextResult.warnings,
-        }),
+        parts: nextResult.parts,
         warnings: nextResult.warnings,
       };
     }
@@ -563,16 +511,7 @@ function buildPartsWithEmbeddedReserves(params: {
   }
 
   return {
-    parts: ensureRenderedPartLimit({
-      outputDirectory,
-      filenamePrefix,
-      inputDirectory,
-      parts: result.parts,
-      collectedFiles: files,
-      skippedFiles,
-      markers,
-      warnings: result.warnings,
-    }),
+    parts: result.parts,
     warnings: result.warnings,
   };
 }
