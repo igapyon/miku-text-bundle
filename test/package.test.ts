@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
-const PACKAGE_RUNTIME_FILES = ["dist/", "README.md", "docs/gitignore-limitations.md", "docs/project-design.md", "docs/release-notes-v0.8.0.md", "docs/release-notes-v0.8.1.md", "docs/release-notes-v0.9.0.md", "docs/release-notes-v1.0.0.md", "docs/release-notes-v1.0.1.md", "docs/release-notes-v1.1.0.md", "docs/release-notes-v1.2.0.md", "docs/release-notes-v1.3.0.md", "LICENSE"];
+const PACKAGE_RUNTIME_FILES = ["dist/", "README.md", "docs/gitignore-limitations.md", "docs/project-design.md", "docs/release-notes-v0.8.0.md", "docs/release-notes-v0.8.1.md", "docs/release-notes-v0.9.0.md", "docs/release-notes-v1.0.0.md", "docs/release-notes-v1.0.1.md", "docs/release-notes-v1.1.0.md", "docs/release-notes-v1.2.0.md", "docs/release-notes-v1.3.0.md", "docs/release-notes-v1.4.0.md", "LICENSE"];
 const REQUIRED_PACK_FILES = [
   "README.md",
   "docs/gitignore-limitations.md",
@@ -15,12 +15,13 @@ const REQUIRED_PACK_FILES = [
   "docs/release-notes-v1.1.0.md",
   "docs/release-notes-v1.2.0.md",
   "docs/release-notes-v1.3.0.md",
+  "docs/release-notes-v1.4.0.md",
   "LICENSE",
   "package.json",
   "dist/main.js",
   "dist/main.d.ts",
 ];
-const ALLOWED_PACK_ROOT_FILES = ["README.md", "docs/gitignore-limitations.md", "docs/project-design.md", "docs/release-notes-v0.8.0.md", "docs/release-notes-v0.8.1.md", "docs/release-notes-v0.9.0.md", "docs/release-notes-v1.0.0.md", "docs/release-notes-v1.0.1.md", "docs/release-notes-v1.1.0.md", "docs/release-notes-v1.2.0.md", "docs/release-notes-v1.3.0.md", "LICENSE", "package.json"];
+const ALLOWED_PACK_ROOT_FILES = ["README.md", "docs/gitignore-limitations.md", "docs/project-design.md", "docs/release-notes-v0.8.0.md", "docs/release-notes-v0.8.1.md", "docs/release-notes-v0.9.0.md", "docs/release-notes-v1.0.0.md", "docs/release-notes-v1.0.1.md", "docs/release-notes-v1.1.0.md", "docs/release-notes-v1.2.0.md", "docs/release-notes-v1.3.0.md", "docs/release-notes-v1.4.0.md", "LICENSE", "package.json"];
 
 function npmPackDryRunFiles(): string[] {
   const result = spawnSync("npm", ["pack", "--dry-run", "--json"], {

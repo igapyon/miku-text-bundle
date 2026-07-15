@@ -33,7 +33,7 @@ node dist/main.js --input . --output out --max-chars 120000
 
 CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/igapyon/items/c67f37ffe4d0fd1eed9d) を参照してください。
 
-`v1.3.0` の変更点は [docs/release-notes-v1.3.0.md](docs/release-notes-v1.3.0.md) を参照してください。
+`v1.4.0` の変更点は [docs/release-notes-v1.4.0.md](docs/release-notes-v1.4.0.md) を参照してください。
 `v1.2.0` の変更点は [docs/release-notes-v1.2.0.md](docs/release-notes-v1.2.0.md) を参照してください。
 `v1.1.0` の変更点は [docs/release-notes-v1.1.0.md](docs/release-notes-v1.1.0.md) を参照してください。
 `v1.0.1` の変更点は [docs/release-notes-v1.0.1.md](docs/release-notes-v1.0.1.md) を参照してください。
@@ -175,7 +175,9 @@ prefix は前後の空白を除去したうえで、`A-Z`、`a-z`、`0-9`、`.`�
 
 基本的には、ファイル途中では分割せず、ファイル単位で Part に割り当てます。
 
-`--max-chars` は、生成 Markdown ファイル全体の厳密な最大文字数ではなく、Part ごとのソース本文文字数の近似上限です。見出し、code fence、先頭 Part に同梱する prompt、最終 Part に同梱する index などのメタデータ分は追加されます。
+`--max-chars` は、生成 Markdown ファイル全体の厳密な最大文字数ではなく、Part ごとのソース本文文字数の近似上限です。見出し、code fence、先頭 Part に同梱する prompt、最終 Part に同梱する index などのメタデータ分は追加されます。デフォルトは `120000` です。
+
+生成済み Markdown Part の実文字数に対する固定上限はありません。そのため、メタデータを含む実際の Markdown Part は `--max-chars` を超える場合があります。生成先に文字数制限がある場合は、その制限を考慮して小さめの `--max-chars` を指定し、生成結果の文字数を確認してください。
 
 先頭 Part に同梱する prompt と最終 Part に同梱する index は、`--max-chars` の分割計算時に予約枠として扱います。予約枠には小さな安全マージンを加えるため、先頭 Part と最終 Part の本文量は中間 Part より少なくなることがあります。
 
