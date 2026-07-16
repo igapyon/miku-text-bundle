@@ -5,7 +5,7 @@ const CLI_DEFAULT_MAX_CHARS = 120000;
 const CLI_DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
 const CLI_DEFAULT_FILENAME_PREFIX = "text-bundle";
 const CLI_DEFAULT_KNOWLEDGE_FILENAME_PREFIX = "knowledge";
-export const CLI_VERSION = "1.5.0";
+export const CLI_VERSION = "1.5.1";
 const SUPPORTED_ENCODINGS = new Set<SupportedEncoding>(["utf-8", "shift_jis"]);
 export const DEFAULT_EXCLUDE_EXTENSIONS = [
   ".7z",
