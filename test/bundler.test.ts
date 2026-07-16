@@ -412,6 +412,70 @@ describe("createTextBundle", () => {
     expect(existsSync(outputDirectory)).toBe(false);
   });
 
+  it("generates neutral Knowledge source files and a separate management index", () => {
+    const root = makeTempRepo();
+    const markdownBody = "# Product\n\nFact A.\n\n\nFact B.\n";
+    writeFile(join(root, "docs", "guide.md"), markdownBody);
+    writeFile(join(root, "src", "main.ts"), "// TODO implement\nconst value = 1;\n");
+
+    const result = createTextBundle(bundleOptions(root, { mode: "knowledge-source" }));
+
+    expect(result.mode).toBe("knowledge-source");
+    expect(result.knowledgeSourcePaths).toEqual(result.partPaths);
+    expect(basename(result.partPaths[0]!)).toBe("knowledge-001.md");
+    expect(basename(result.managementIndexPath!)).toBe("knowledge-index.md");
+    const knowledge = readFileSync(result.partPaths[0]!, "utf8");
+    const index = readFileSync(result.managementIndexPath!, "utf8");
+    expect(knowledge).toContain(markdownBody);
+    expect(knowledge).toContain("- Source path: `docs/guide.md`");
+    expect(knowledge).toContain("~~~ts\n// TODO implement\nconst value = 1;\n\n~~~");
+    expect(knowledge).not.toContain("Text Bundle Prompt");
+    expect(knowledge).not.toContain("Acknowledgement");
+    expect(knowledge).not.toContain("Agent Skill Handoff");
+    expect(knowledge).not.toContain("## Markers");
+    expect(index).toContain("# Knowledge Bundle Index");
+    expect(index).toContain("## Source Mapping");
+    expect(index).toContain("TODO implement");
+  });
+
+  it("tracks deterministic line and UTF-16 character ranges for split Knowledge sources", () => {
+    const root = makeTempRepo();
+    writeFile(join(root, "large.md"), "aaaa\nbbbb\ncccc\n");
+
+    const result = createTextBundle(bundleOptions(root, { mode: "knowledge-source", maxChars: 6 }));
+    const index = readFileSync(result.managementIndexPath!, "utf8");
+
+    expect(result.partPaths).toHaveLength(3);
+    expect(readFileSync(result.partPaths[1]!, "utf8")).toContain("- Source chunk: 2 / 3");
+    expect(readFileSync(result.partPaths[1]!, "utf8")).toContain("- Source lines: 2-2");
+    expect(index).toContain("| `large.md` | `knowledge-002.md` | 2 / 3 | 2-2 | 5-10 | 15 | 5 |");
+  });
+
+  it("reports stale Knowledge source files without deleting them", () => {
+    const root = makeTempRepo();
+    const outputDirectory = join(root, "out");
+    writeFile(join(root, "README.md"), "# README\n");
+    writeFile(join(outputDirectory, "knowledge-002.md"), "stale\n");
+
+    const result = createTextBundle(bundleOptions(root, { mode: "knowledge-source", outputDirectory }));
+
+    expect(existsSync(join(outputDirectory, "knowledge-002.md"))).toBe(true);
+    expect(result.warnings).toContain("Stale generated output remains: `knowledge-002.md`.");
+    expect(readFileSync(result.managementIndexPath!, "utf8")).toContain("- `knowledge-002.md`");
+  });
+
+  it("plans Knowledge source artifacts without writing in dry-run mode", () => {
+    const root = makeTempRepo();
+    const outputDirectory = join(root, "out");
+    writeFile(join(root, "README.md"), "# README\n");
+
+    const result = createTextBundle(bundleOptions(root, { mode: "knowledge-source", outputDirectory, dryRun: true }));
+
+    expect(result.partPaths).toEqual([join(outputDirectory, "knowledge-001.md")]);
+    expect(result.managementIndexPath).toBe(join(outputDirectory, "knowledge-index.md"));
+    expect(existsSync(outputDirectory)).toBe(false);
+  });
+
   it("allows text-bundle-999.md as the final compact part", () => {
     const root = makeTempRepo();
     for (let index = 1; index <= 999; index += 1) {

@@ -16,6 +16,14 @@ miku-text-bundle --input <dir> --output <dir>
 miku-text-bundle --input skills/igapyon-skill-compactor --output workplace/text-bundle-dist --filename-prefix igapyon-skill-compactor-text-bundle
 ```
 
+Knowledge source向けの中立的なMarkdownを生成する場合は、`knowledge-source`モードを指定します。
+
+```bash
+miku-text-bundle --input . --output workplace/knowledge-dist --mode knowledge-source
+```
+
+`--mode`を省略した場合は、従来どおり`handoff`モードで動作します。
+
 ヘルプとバージョンを確認できます。
 
 ```bash
@@ -34,6 +42,7 @@ node dist/main.js --input . --output out --max-chars 120000
 CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/igapyon/items/c67f37ffe4d0fd1eed9d) を参照してください。
 
 `v1.4.0` の変更点は [docs/release-notes-v1.4.0.md](docs/release-notes-v1.4.0.md) を参照してください。
+`v1.5.0` の変更点は [docs/release-notes-v1.5.0.md](docs/release-notes-v1.5.0.md) を参照してください。
 `v1.2.0` の変更点は [docs/release-notes-v1.2.0.md](docs/release-notes-v1.2.0.md) を参照してください。
 `v1.1.0` の変更点は [docs/release-notes-v1.1.0.md](docs/release-notes-v1.1.0.md) を参照してください。
 `v1.0.1` の変更点は [docs/release-notes-v1.0.1.md](docs/release-notes-v1.0.1.md) を参照してください。
@@ -44,6 +53,7 @@ CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/i
 
 ## 主なオプション
 
+- `--mode handoff|knowledge-source`: 出力モードを指定する。デフォルトは`handoff`。
 - `--input <dir>`: 入力ディレクトリを指定する。
 - `--output <dir>`: 出力ディレクトリを指定する。
 - `--filename-prefix <prefix>`: 生成する Markdown ファイル名の prefix を指定する。デフォルトは `text-bundle`。
@@ -150,6 +160,28 @@ miku-text-bundle --input . --output out --encoding utf-8 --encoding-extension ".
 出力先には次の Markdown ファイルを生成します。
 
 - `text-bundle-001.md`, `text-bundle-002.md` 以降の分割 Markdown ファイル
+
+### Knowledge sourceモード
+
+`--mode knowledge-source`では、デフォルトで次のファイルを生成します。
+
+```text
+knowledge-001.md
+knowledge-002.md
+knowledge-index.md
+```
+
+番号付きファイルだけがKnowledge sourceへの登録候補です。番号付きファイルには、元ファイルの相対パス、必要に応じたチャンク番号と元行範囲、および元本文を収録します。Text Bundle Prompt、読み込み・応答指示、Agent Skill Handoff、警告、スキップ情報、marker一覧は収録しません。
+
+`knowledge-index.md`は登録対象ではない管理用ファイルです。実行時の主要設定、生成ファイル、元ファイルとチャンクの対応、スキップ理由、警告、`TODO` / `FIXME` / `XXX` marker、旧生成物候補を記録します。
+
+Knowledge sourceモードのデフォルトprefixは`knowledge`です。`--filename-prefix`を指定した場合、番号付きファイルは`<prefix>-001.md`、管理用indexは`<prefix>-index.md`になります。
+
+出力形式の変換、登録先固有のファイルサイズ制約への対応、Knowledge sourceサービスへの登録は呼び出し元の責務です。呼び出し元は必要に応じて`--max-chars`を指定します。本ツールはMarkdown生成後の`.docx`等への変換を行いません。
+
+同じprefixで以前に生成された不要な番号付きファイルを検出した場合、v1.5.0では削除せず、管理用indexと実行結果の警告に記録します。
+
+### handoffモード
 
 各 Markdown ファイルの先頭には、生成ツール名、バージョン、ファイルの役割を示す短い YAML front matter を付与します。分割 Markdown ファイルは `role: part` です。先頭 Part には `prompt: true`、最終 Part には `terminal: true` を付与します。Part が 1 つだけの場合は、同じファイルに両方を付与します。
 
