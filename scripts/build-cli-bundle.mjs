@@ -10,7 +10,7 @@ const bundlePath = join(bundleDir, `${product}.mjs`);
 const sourceArchivePath = join(bundleDir, `${product}-sources.tgz`);
 
 const bundleNodeImports = [
-  'import { mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";',
+  'import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";',
   'import { dirname, extname, join, relative, resolve, sep } from "node:path";',
   'import { TextDecoder } from "node:util";',
   'import { fileURLToPath } from "node:url";',

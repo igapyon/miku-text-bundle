@@ -2,7 +2,7 @@
 
 ## Current Status
 
-- Package and CLI version is `1.5.0`.
+- Package and CLI version is `1.5.1`.
 - Initial Node.js / TypeScript CLI implementation is functionally in place.
 - The project is in late-stage hardening before the first practical release.
 - `npm run build` currently runs TypeScript build, CLI bundle generation, Vitest tests, `npm pack --dry-run`, and bundle smoke testing.

@@ -21,6 +21,12 @@ function assertIncludes(content, expected, fileName) {
   }
 }
 
+function assertExcludes(content, unexpected, fileName) {
+  if (content.includes(unexpected)) {
+    throw new Error(`${fileName} contained unexpected text: ${unexpected}`);
+  }
+}
+
 function assertFile(path, label) {
   const fileStat = statSync(path, { throwIfNoEntry: false });
   if (!fileStat?.isFile()) {
@@ -60,6 +66,33 @@ function runBundleCli() {
   });
 }
 
+function assertKnowledgeSourceMode() {
+  const knowledgeInputDirectory = join(root, "knowledge-input");
+  const knowledgeOutputDirectory = join(root, "knowledge-out");
+  mkdirSync(knowledgeInputDirectory, { recursive: true });
+  writeFileSync(join(knowledgeInputDirectory, "source.md"), "# Knowledge source content\n", "utf8");
+  execFileSync(process.execPath, [
+    bundlePath,
+    "--input",
+    knowledgeInputDirectory,
+    "--output",
+    knowledgeOutputDirectory,
+    "--mode",
+    "knowledge-source",
+  ], {
+    encoding: "utf8",
+  });
+
+  const partFileName = "knowledge-001.md";
+  const indexFileName = "knowledge-index.md";
+  const part = readFileSync(join(knowledgeOutputDirectory, partFileName), "utf8");
+  assertFile(join(knowledgeOutputDirectory, partFileName), "Knowledge source part");
+  assertFile(join(knowledgeOutputDirectory, indexFileName), "Knowledge source index");
+  assertIncludes(part, "# Knowledge source content", partFileName);
+  assertExcludes(part, "prompt: true", partFileName);
+  assertExcludes(part, "terminal: true", partFileName);
+}
+
 function assertSymlinkEntrypoint() {
   const linkPath = join(root, "linked-miku-text-bundle.mjs");
   symlinkSync(join(process.cwd(), bundlePath), linkPath);
@@ -96,6 +129,7 @@ try {
   assertSymlinkEntrypoint();
   runBundleCli();
   assertSmokeOutput();
+  assertKnowledgeSourceMode();
 } finally {
   rmSync(root, { recursive: true, force: true });
 }
