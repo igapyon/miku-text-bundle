@@ -114,6 +114,19 @@ describe("CLI subprocess", () => {
     expect(readOutputFile(output, "sample-repo-text-bundle-001.md")).toContain("# Text Bundle Index");
   });
 
+  it("generates Knowledge source files and management index from dist/main.js", () => {
+    const root = makeTempRepo();
+    const output = join(root, "out");
+    writeFile(join(root, "README.md"), "# Repository facts\n");
+
+    const stdout = runCli(["--input", root, "--output", output, "--mode", "knowledge-source"]);
+
+    expect(stdout).toContain("1 knowledge file(s), 1 management index");
+    expect(readOutputFile(output, "knowledge-001.md")).toContain("- Source path: `README.md`");
+    expect(readOutputFile(output, "knowledge-001.md")).not.toContain("Text Bundle Prompt");
+    expect(readOutputFile(output, "knowledge-index.md")).toContain("# Knowledge Bundle Index");
+  });
+
   it("estimates collection without writing files in dry-run mode", () => {
     const root = makeTempRepo();
     const output = join(root, "out");
@@ -127,6 +140,18 @@ describe("CLI subprocess", () => {
     expect(stdout).toContain("2 file(s) collected");
     expect(stdout).toContain("no files written");
     expect(stdout).not.toContain("generated:");
+    expect(existsSync(output)).toBe(false);
+  });
+
+  it("plans Knowledge source files without writing in dry-run mode", () => {
+    const root = makeTempRepo();
+    const output = join(root, "out");
+    writeFile(join(root, "README.md"), "# README\n");
+
+    const stdout = runCli(["--input", root, "--output", output, "--mode", "knowledge-source", "--dry-run"]);
+
+    expect(stdout).toContain("dry-run: 1 knowledge file(s), 1 management index");
+    expect(stdout).toContain("no files written");
     expect(existsSync(output)).toBe(false);
   });
 

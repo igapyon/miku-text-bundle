@@ -80,6 +80,18 @@ describe("parseArgs", () => {
     });
   });
 
+  it("parses output modes and applies mode-specific default prefixes", () => {
+    expect(parseArgs(["--input", ".", "--output", "out"])).toMatchObject({ mode: "handoff", filenamePrefix: "text-bundle" });
+    expect(parseArgs(["--input", ".", "--output", "out", "--mode", "handoff"])).toMatchObject({ mode: "handoff", filenamePrefix: "text-bundle" });
+    expect(parseArgs(["--input", ".", "--output", "out", "--mode", "knowledge-source"])).toMatchObject({ mode: "knowledge-source", filenamePrefix: "knowledge" });
+    expect(parseArgs(["--input", ".", "--output", "out", "--mode", "knowledge-source", "--filename-prefix", "docs"])).toMatchObject({ mode: "knowledge-source", filenamePrefix: "docs" });
+  });
+
+  it("rejects missing or unsupported output modes", () => {
+    expect(() => parseArgs(["--input", ".", "--output", "out", "--mode"])).toThrow("Please specify a value for --mode");
+    expect(() => parseArgs(["--input", ".", "--output", "out", "--mode", "other"])).toThrow("--mode must be one of");
+  });
+
   it("rejects invalid filename prefix values", () => {
     expect(() => parseArgs(["--input", ".", "--output", "out", "--filename-prefix", "   "])).toThrow("--filename-prefix must not be empty");
     expect(() => parseArgs(["--input", ".", "--output", "out", "--filename-prefix", "bad/name"])).toThrow("--filename-prefix must contain only");
@@ -140,6 +152,8 @@ describe("printHelp", () => {
     expect(output).toContain("matcher is simplified");
     expect(output).toContain("nested .gitignore files and negation patterns");
     expect(output).toContain("--filename-prefix");
+    expect(output).toContain("--mode handoff|knowledge-source");
+    expect(output).toContain("<prefix>-index.md");
     expect(output).toContain("--max-input-file-bytes");
     expect(output).toContain("--encoding");
     expect(output).toContain("--encoding-extension");

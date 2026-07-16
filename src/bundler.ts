@@ -1,11 +1,11 @@
-import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { extname, join, relative, resolve } from "node:path";
 import { TextDecoder } from "node:util";
 import { CLI_VERSION } from "./cli.js";
 import { discoverCandidateFiles } from "./discovery.js";
-import { buildPartMarkdown } from "./markdown.js";
+import { buildKnowledgeIndexMarkdown, buildKnowledgeSourceMarkdown, buildPartMarkdown } from "./markdown.js";
 import { parseGitignore } from "./match.js";
-import { getExtension, toPosixPath } from "./path-utils.js";
+import { compareUtf16CodeUnits, getExtension, toPosixPath } from "./path-utils.js";
 import type { BundleChunk, BundlePart, BundleResult, CliOptions, CollectedFile, IgnoreStats, Marker, SkippedFile, SupportedEncoding } from "./types.js";
 
 type CollectedFilesResult = {
@@ -50,6 +50,7 @@ type BundleMarkdownPaths = {
 
 const MAX_BUNDLE_PART_NUMBER = 999;
 const DEFAULT_FILENAME_PREFIX = "text-bundle";
+const DEFAULT_KNOWLEDGE_FILENAME_PREFIX = "knowledge";
 const DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
 const EMBEDDED_SECTION_RESERVE_MARGIN_CHARS = 256;
 const EMBEDDED_SECTION_RESERVE_MARGIN_RATIO = 0.1;
@@ -192,7 +193,19 @@ function createSingleFileChunk(file: CollectedFile): BundleChunk {
     originalLineCount: file.lineCount,
     chunkIndex: 1,
     chunkCount: 1,
+    sourceStartLine: file.lineCount === 0 ? 0 : 1,
+    sourceEndLine: file.lineCount,
+    sourceStartChar: 0,
+    sourceEndChar: file.content.length,
   };
+}
+
+function sourceLineAtOffset(content: string, offset: number): number {
+  if (content.length === 0) {
+    return 0;
+  }
+  const boundedOffset = Math.max(0, Math.min(offset, content.length - 1));
+  return 1 + (content.slice(0, boundedOffset).match(/\n/g)?.length ?? 0);
 }
 
 function splitContentByMaxChars(content: string, maxChars: number): string[] {
@@ -228,16 +241,26 @@ function splitContentByMaxChars(content: string, maxChars: number): string[] {
 
 function createSplitFileChunks(file: CollectedFile, chunkContents: string[]): BundleChunk[] {
   const chunkCount = chunkContents.length;
-  return chunkContents.map((content, index) => ({
-    relativePath: file.relativePath,
-    extension: file.extension,
-    content,
-    originalCharCount: file.charCount,
-    originalLineCount: file.lineCount,
-    chunkIndex: index + 1,
-    chunkCount,
-    splitReason: "This file exceeded the size limit and was split.",
-  }));
+  let sourceStartChar = 0;
+  return chunkContents.map((content, index) => {
+    const sourceEndChar = sourceStartChar + content.length;
+    const chunk = {
+      relativePath: file.relativePath,
+      extension: file.extension,
+      content,
+      originalCharCount: file.charCount,
+      originalLineCount: file.lineCount,
+      chunkIndex: index + 1,
+      chunkCount,
+      sourceStartLine: sourceLineAtOffset(file.content, sourceStartChar),
+      sourceEndLine: sourceLineAtOffset(file.content, Math.max(sourceStartChar, sourceEndChar - 1)),
+      sourceStartChar,
+      sourceEndChar,
+      splitReason: "This file exceeded the size limit and was split.",
+    } satisfies BundleChunk;
+    sourceStartChar = sourceEndChar;
+    return chunk;
+  });
 }
 
 function splitOversizedFile(file: CollectedFile, maxChars: number): BundleChunk[] {
@@ -421,6 +444,74 @@ function plannedBundleMarkdownPaths(outputDirectory: string, filenamePrefix: str
   return { indexPath, promptPath, partPaths };
 }
 
+function knowledgeIndexFileName(filenamePrefix: string): string {
+  return `${filenamePrefix}-index.md`;
+}
+
+function staleKnowledgeOutputs(outputDirectory: string, filenamePrefix: string, parts: BundlePart[]): string[] {
+  if (!existsSync(outputDirectory)) {
+    return [];
+  }
+  const escapedPrefix = filenamePrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`^${escapedPrefix}-\\d{3}\\.md$`);
+  const planned = new Set(parts.map((part) => part.fileName));
+  return readdirSync(outputDirectory)
+    .filter((name) => pattern.test(name) && !planned.has(name))
+    .sort(compareUtf16CodeUnits);
+}
+
+function sortedEncodingExtensions(options: CliOptions): string {
+  return Object.entries(options.encoding?.extensions ?? {})
+    .sort(([left], [right]) => compareUtf16CodeUnits(left, right))
+    .map(([extension, encoding]) => `${extension}=${encoding}`)
+    .join(", ");
+}
+
+function knowledgeConfiguration(options: CliOptions, filenamePrefix: string, inputDirectory: string, outputDirectory: string): Array<[string, string]> {
+  return [
+    ["mode", "knowledge-source"],
+    ["input", displayPathFromCurrentDirectory(inputDirectory)],
+    ["output", displayPathFromCurrentDirectory(outputDirectory)],
+    ["filename-prefix", filenamePrefix],
+    ["max-chars", String(options.maxChars)],
+    ["max-input-file-bytes", String(options.maxInputFileBytes ?? DEFAULT_MAX_INPUT_FILE_BYTES)],
+    ["encoding", options.encoding?.default ?? DEFAULT_ENCODING_OPTIONS.default],
+    ["encoding-extension", sortedEncodingExtensions(options)],
+    ["exclude-extensions", [...(options.excludeExtensions ?? [])].sort(compareUtf16CodeUnits).join(", ")],
+    ["exclude-directories", [...(options.excludeDirectories ?? [])].sort(compareUtf16CodeUnits).join(", ")],
+  ];
+}
+
+function writeKnowledgeMarkdownFiles(params: BundleMarkdownWriteParams, options: CliOptions): BundleMarkdownPaths & { staleOutputCandidates: string[] } {
+  const staleOutputCandidates = staleKnowledgeOutputs(params.outputDirectory, params.filenamePrefix, params.parts);
+  const partPaths = params.parts.map((part) => join(params.outputDirectory, part.fileName));
+  for (const [index, part] of params.parts.entries()) {
+    writeFileSync(partPaths[index]!, buildKnowledgeSourceMarkdown(part), "utf8");
+  }
+  const indexPath = join(params.outputDirectory, knowledgeIndexFileName(params.filenamePrefix));
+  writeFileSync(indexPath, buildKnowledgeIndexMarkdown({
+    managementIndexFileName: knowledgeIndexFileName(params.filenamePrefix),
+    configuration: knowledgeConfiguration(options, params.filenamePrefix, params.inputDirectory, params.outputDirectory),
+    parts: params.parts,
+    collectedFiles: params.collectedFiles,
+    skippedFiles: params.skippedFiles,
+    markers: params.markers,
+    warnings: params.warnings,
+    staleOutputCandidates,
+  }), "utf8");
+  return { indexPath, promptPath: partPaths[0]!, partPaths, staleOutputCandidates };
+}
+
+function plannedKnowledgeMarkdownPaths(outputDirectory: string, filenamePrefix: string, parts: BundlePart[]): BundleMarkdownPaths & { staleOutputCandidates: string[] } {
+  const partPaths = parts.map((part) => join(outputDirectory, part.fileName));
+  return {
+    indexPath: join(outputDirectory, knowledgeIndexFileName(filenamePrefix)),
+    promptPath: partPaths[0]!,
+    partPaths,
+    staleOutputCandidates: staleKnowledgeOutputs(outputDirectory, filenamePrefix, parts),
+  };
+}
+
 function estimateEmbeddedPromptChars(parts: BundlePart[], filenamePrefix: string): number {
   const promptFileName = bundlePromptFileName(filenamePrefix);
   const indexFileName = parts.at(-1)?.fileName ?? promptFileName;
@@ -536,6 +627,7 @@ function printGeneratedPaths(partPaths: string[]): void {
 
 export function createTextBundle(options: CliOptions, now = new Date()): BundleResult {
   void now;
+  const mode = options.mode ?? "handoff";
   const inputPath = resolve(options.inputDirectory);
   const inputStat = statSync(inputPath, { throwIfNoEntry: false });
 
@@ -544,7 +636,7 @@ export function createTextBundle(options: CliOptions, now = new Date()): BundleR
   }
 
   const outputDirectory = chooseOutputDirectory(options.outputDirectory);
-  const filenamePrefix = normalizeFilenamePrefix(options.filenamePrefix ?? DEFAULT_FILENAME_PREFIX);
+  const filenamePrefix = normalizeFilenamePrefix(options.filenamePrefix ?? (mode === "knowledge-source" ? DEFAULT_KNOWLEDGE_FILENAME_PREFIX : DEFAULT_FILENAME_PREFIX));
   if (!options.dryRun) {
     mkdirSync(outputDirectory, { recursive: true });
   }
@@ -552,19 +644,19 @@ export function createTextBundle(options: CliOptions, now = new Date()): BundleR
   const gitignorePatterns = readRootGitignore(inputPath);
   const { files, skipped, ignored } = collectFiles(inputPath, outputDirectory, options, gitignorePatterns);
   const markers = files.flatMap((file) => file.markers);
-  const { parts, warnings } = buildPartsWithEmbeddedReserves({
-    files,
-    maxChars: options.maxChars,
-    filenamePrefix,
-    inputDirectory: inputPath,
-    outputDirectory,
-    skippedFiles: skipped,
-    markers,
-  });
+  const { parts, warnings } = mode === "knowledge-source"
+    ? buildParts(files, options.maxChars, filenamePrefix)
+    : buildPartsWithEmbeddedReserves({
+        files,
+        maxChars: options.maxChars,
+        filenamePrefix,
+        inputDirectory: inputPath,
+        outputDirectory,
+        skippedFiles: skipped,
+        markers,
+      });
 
-  const { indexPath, promptPath, partPaths } = options.dryRun
-    ? plannedBundleMarkdownPaths(outputDirectory, filenamePrefix, parts)
-    : writeBundleMarkdownFiles({
+  const writeParams = {
         outputDirectory,
         filenamePrefix,
         inputDirectory: inputPath,
@@ -573,7 +665,19 @@ export function createTextBundle(options: CliOptions, now = new Date()): BundleR
         skippedFiles: skipped,
         markers,
         warnings,
-      });
+      };
+  const paths = mode === "knowledge-source"
+    ? options.dryRun
+      ? plannedKnowledgeMarkdownPaths(outputDirectory, filenamePrefix, parts)
+      : writeKnowledgeMarkdownFiles(writeParams, options)
+    : options.dryRun
+      ? { ...plannedBundleMarkdownPaths(outputDirectory, filenamePrefix, parts), staleOutputCandidates: [] }
+      : { ...writeBundleMarkdownFiles(writeParams), staleOutputCandidates: [] };
+  const { indexPath, promptPath, partPaths, staleOutputCandidates } = paths;
+  const resultWarnings = [
+    ...warnings,
+    ...staleOutputCandidates.map((fileName) => `Stale generated output remains: \`${fileName}\`.`),
+  ];
 
   if (options.verbose) {
     printVerboseSummary(files, skipped, parts, ignored);
@@ -581,13 +685,19 @@ export function createTextBundle(options: CliOptions, now = new Date()): BundleR
 
   if (!options.dryRun) {
     printGeneratedPaths(partPaths);
+    if (mode === "knowledge-source") {
+      printGeneratedPaths([indexPath]);
+    }
   }
 
   return {
+    mode,
     outputDirectory,
     indexPath,
     promptPath,
     partPaths,
+    knowledgeSourcePaths: mode === "knowledge-source" ? partPaths : [],
+    managementIndexPath: mode === "knowledge-source" ? indexPath : undefined,
     filesCollected: files.length,
     filesSkipped: skipped.length,
     directoriesIgnored: ignored.directories,
@@ -597,7 +707,7 @@ export function createTextBundle(options: CliOptions, now = new Date()): BundleR
     ignoredByGitignore: ignored.byGitignore,
     ignoredByOutputDirectory: ignored.byOutputDirectory,
     partsGenerated: parts.length,
-    warnings,
+    warnings: resultWarnings,
     dryRun: options.dryRun ?? false,
   };
 }

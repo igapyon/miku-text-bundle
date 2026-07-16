@@ -1,4 +1,5 @@
 export type SupportedEncoding = "utf-8" | "shift_jis";
+export type BundleMode = "handoff" | "knowledge-source";
 
 export type EncodingOptions = {
   default: SupportedEncoding;
@@ -9,6 +10,7 @@ export type CliOptions = {
   inputDirectory: string;
   outputDirectory: string;
   filenamePrefix?: string;
+  mode?: BundleMode;
   maxChars: number;
   maxInputFileBytes?: number;
   encoding?: EncodingOptions;
@@ -57,6 +59,10 @@ export type BundleChunk = {
   originalLineCount: number;
   chunkIndex: number;
   chunkCount: number;
+  sourceStartLine?: number;
+  sourceEndLine?: number;
+  sourceStartChar?: number;
+  sourceEndChar?: number;
   splitReason?: string;
 };
 
@@ -68,10 +74,13 @@ export type BundlePart = {
 };
 
 export type BundleResult = {
+  mode: BundleMode;
   outputDirectory: string;
   indexPath: string;
   promptPath: string;
   partPaths: string[];
+  knowledgeSourcePaths: string[];
+  managementIndexPath?: string;
   filesCollected: number;
   filesSkipped: number;
   directoriesIgnored: number;

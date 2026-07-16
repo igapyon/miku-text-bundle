@@ -7,6 +7,7 @@ import { createTextBundle } from "./bundler.js";
 
 export type {
   BundleChunk,
+  BundleMode,
   BundlePart,
   BundleResult,
   CliOptions,
@@ -29,7 +30,8 @@ export {
 } from "./cli.js";
 export { createTextBundle, chooseOutputDirectory } from "./bundler.js";
 export { discoverCandidateFiles } from "./discovery.js";
-export { buildIndexMarkdown, buildPartMarkdown, buildPromptMarkdown } from "./markdown.js";
+export { buildIndexMarkdown, buildKnowledgeIndexMarkdown, buildKnowledgeSourceMarkdown, buildPartMarkdown, buildPromptMarkdown } from "./markdown.js";
+export type { KnowledgeIndexParams } from "./markdown.js";
 export { matchesAnyPattern, matchesGitignore, parseGitignore } from "./match.js";
 export { compareUtf16CodeUnits, getExtension, normalizePattern, toPosixPath } from "./path-utils.js";
 
@@ -51,7 +53,9 @@ export function main(): void {
     const result = createTextBundle(options);
     const prefix = result.dryRun ? "dry-run" : "completed";
     const suffix = result.dryRun ? ", no files written" : "";
-    console.log(`${prefix}: ${result.partsGenerated} part(s), ${result.filesCollected} file(s) collected, ${result.filesSkipped} file(s) skipped, ${result.directoriesIgnored} directories ignored, ${result.filesIgnored} file(s) ignored${suffix}`);
+    const artifactLabel = result.mode === "knowledge-source" ? "knowledge file(s)" : "part(s)";
+    const indexSuffix = result.mode === "knowledge-source" ? ", 1 management index" : "";
+    console.log(`${prefix}: ${result.partsGenerated} ${artifactLabel}${indexSuffix}, ${result.filesCollected} file(s) collected, ${result.filesSkipped} file(s) skipped, ${result.directoriesIgnored} directories ignored, ${result.filesIgnored} file(s) ignored${suffix}`);
   } catch (error) {
     if (error instanceof HelpRequestedError) {
       printHelp();

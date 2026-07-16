@@ -1,10 +1,11 @@
-import type { CliOptions, EncodingOptions, SupportedEncoding } from "./types.js";
+import type { BundleMode, CliOptions, EncodingOptions, SupportedEncoding } from "./types.js";
 import { compareUtf16CodeUnits, normalizePattern } from "./path-utils.js";
 
 const CLI_DEFAULT_MAX_CHARS = 120000;
 const CLI_DEFAULT_MAX_INPUT_FILE_BYTES = 1_000_000;
 const CLI_DEFAULT_FILENAME_PREFIX = "text-bundle";
-export const CLI_VERSION = "1.4.0";
+const CLI_DEFAULT_KNOWLEDGE_FILENAME_PREFIX = "knowledge";
+export const CLI_VERSION = "1.5.0";
 const SUPPORTED_ENCODINGS = new Set<SupportedEncoding>(["utf-8", "shift_jis"]);
 export const DEFAULT_EXCLUDE_EXTENSIONS = [
   ".7z",
@@ -76,6 +77,8 @@ type ParseState = {
   inputDirectory?: string;
   outputDirectory?: string;
   filenamePrefix: string;
+  filenamePrefixExplicit: boolean;
+  mode: BundleMode;
   maxChars: number;
   maxInputFileBytes: number;
   encoding: EncodingOptions;
@@ -184,6 +187,8 @@ function parseEncodingExtensions(value: string): Record<string, SupportedEncodin
 function createParseState(): ParseState {
   return {
     filenamePrefix: CLI_DEFAULT_FILENAME_PREFIX,
+    filenamePrefixExplicit: false,
+    mode: "handoff",
     maxChars: CLI_DEFAULT_MAX_CHARS,
     maxInputFileBytes: CLI_DEFAULT_MAX_INPUT_FILE_BYTES,
     encoding: {
@@ -220,6 +225,16 @@ function consumeOption(argv: string[], index: number, state: ParseState): number
 
   if (arg === "--filename-prefix") {
     state.filenamePrefix = parseFilenamePrefix(readRequiredOptionValue(argv, index, "--filename-prefix"));
+    state.filenamePrefixExplicit = true;
+    return index + 1;
+  }
+
+  if (arg === "--mode") {
+    const mode = readRequiredOptionValue(argv, index, "--mode");
+    if (mode !== "handoff" && mode !== "knowledge-source") {
+      throw new Error("--mode must be one of: handoff, knowledge-source.");
+    }
+    state.mode = mode;
     return index + 1;
   }
 
@@ -319,7 +334,12 @@ export function parseArgs(argv: string[]): CliOptions {
   return {
     inputDirectory,
     outputDirectory,
-    filenamePrefix: state.filenamePrefix,
+    filenamePrefix: state.filenamePrefixExplicit
+      ? state.filenamePrefix
+      : state.mode === "knowledge-source"
+        ? CLI_DEFAULT_KNOWLEDGE_FILENAME_PREFIX
+        : CLI_DEFAULT_FILENAME_PREFIX,
+    mode: state.mode,
     maxChars: state.maxChars,
     maxInputFileBytes: state.maxInputFileBytes,
     encoding: state.encoding,
@@ -337,12 +357,13 @@ export function printHelp(): void {
   miku-text-bundle --version
 
 Description:
-  Scan local text-like files under --input and generate split Markdown bundle
-  files under --output for generative AI handoff. No network access is used.
+  Scan local text-like files under --input and generate split Markdown files
+  for AI handoff or neutral Knowledge source preparation. No network is used.
 
 Default behavior:
   Required: --input <dir>, --output <dir>
-  Defaults: --filename-prefix text-bundle, --max-chars 120000,
+  Defaults: --mode handoff, --filename-prefix text-bundle for handoff or
+  knowledge for knowledge-source, --max-chars 120000,
   --max-input-file-bytes 1000000, --encoding utf-8.
   Input paths are ordered by POSIX relative path using UTF-16 code units.
 
@@ -354,22 +375,27 @@ Inputs:
   not supported.
 
 Generated artifacts:
-  <prefix>-001.md ... <prefix>-999.md
+  handoff:          <prefix>-001.md ... <prefix>-999.md
+  knowledge-source: <prefix>-001.md ... <prefix>-999.md, <prefix>-index.md
   These files are generated artifacts and may be regenerated.
   The first part includes the prompt instructions.
   The final part includes the terminal index.
+  These two embedded sections apply only to handoff mode.
+  Knowledge source diagnostics are kept in the separate management index.
 
 Output and overwrite behavior:
   Creates --output when missing. Existing generated files with the same names
   are overwritten. Terminal stdout is progress/completion text, not a stable
-  machine-readable API. The Markdown files are the stable handoff artifacts.
+  machine-readable API. The Markdown files are the stable artifacts.
 
 Diagnostics and exit codes:
   Skipped readable-candidate files and split warnings are recorded in
   the final part index. Invalid usage or processing errors are printed to
-  stderr. Exit code 0 means success/help/version; exit code 1 means failure.
+  stderr. Knowledge diagnostics use the management index.
+  Exit code 0 means success/help/version; exit code 1 means failure.
 
 Options:
+  --mode handoff|knowledge-source  Output mode. Default: handoff.
   --filename-prefix <prefix>       File basename prefix. Allowed: A-Z a-z 0-9 . _ -
   --max-chars <number>             Max approximate source-content chars per part.
   --max-input-file-bytes <number>  Max bytes read from one input file.
@@ -384,6 +410,7 @@ Options:
 
 Example:
   miku-text-bundle --input . --output out --filename-prefix my-repo-text-bundle
+  miku-text-bundle --input . --output out --mode knowledge-source
 `);
 }
 

@@ -324,3 +324,80 @@ function buildPromptMarkdownLines(params: PromptMarkdownParams, includeFrontMatt
 export function buildPromptMarkdown(params: string[] | PromptMarkdownParams): string {
   return buildPromptMarkdownLines(normalizePromptMarkdownParams(params), true).join("\n");
 }
+
+export function buildKnowledgeSourceMarkdown(part: BundlePart): string {
+  const lines = [`# Knowledge Source ${String(part.partNumber).padStart(3, "0")}`, ""];
+
+  for (const [index, chunk] of part.chunks.entries()) {
+    if (index > 0) {
+      lines.push("---", "");
+    }
+    lines.push(`## Source: ${chunk.relativePath}`, "", `- Source path: ${code(chunk.relativePath)}`);
+    if (chunk.chunkCount > 1) {
+      lines.push(`- Source chunk: ${chunk.chunkIndex} / ${chunk.chunkCount}`);
+      lines.push(`- Source lines: ${chunk.sourceStartLine ?? 0}-${chunk.sourceEndLine ?? 0}`);
+    }
+    lines.push("");
+
+    if (chunk.extension === "md") {
+      lines.push(chunk.content, "");
+    } else {
+      const fence = fenceFor(chunk.content);
+      lines.push(`${fence}${languageFor(chunk.extension)}`, chunk.content, fence, "");
+    }
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
+export type KnowledgeIndexParams = {
+  managementIndexFileName: string;
+  configuration: Array<[string, string]>;
+  parts: BundlePart[];
+  collectedFiles: CollectedFile[];
+  skippedFiles: SkippedFile[];
+  markers: Marker[];
+  warnings: string[];
+  staleOutputCandidates: string[];
+};
+
+export function buildKnowledgeIndexMarkdown(params: KnowledgeIndexParams): string {
+  const generatedRows = [
+    ...params.parts.map((part) => [code(part.fileName), "knowledge-source", String(part.chunks.length), String(part.charCount)]),
+    [code(params.managementIndexFileName), "management-index", "-", "-"],
+  ];
+  const mappingRows = params.parts.flatMap((part) => part.chunks.map((chunk) => [
+    code(chunk.relativePath),
+    code(part.fileName),
+    `${chunk.chunkIndex} / ${chunk.chunkCount}`,
+    `${chunk.sourceStartLine ?? 0}-${chunk.sourceEndLine ?? 0}`,
+    `${chunk.sourceStartChar ?? 0}-${chunk.sourceEndChar ?? chunk.content.length}`,
+    String(chunk.originalCharCount),
+    String(chunk.content.length),
+  ]));
+  const staleLines = params.staleOutputCandidates.length === 0
+    ? ["- None", ""]
+    : params.staleOutputCandidates.map((path) => `- ${code(path)}`).concat("");
+
+  return markdown([
+    "# Knowledge Bundle Index", "",
+    "## Configuration", "",
+    ...table(["Option", "Effective value"], ["---", "---"], params.configuration.map(([key, value]) => [code(key), escapeTable(value)])),
+    "## Summary", "",
+    `- Collected files: ${params.collectedFiles.length}`,
+    `- Skipped files: ${params.skippedFiles.length}`,
+    `- Knowledge files: ${params.parts.length}`, "",
+    "## Generated Files", "",
+    ...table(["File", "Role", "Chunks", "Approx chars"], ["---", "---", "---:", "---:"], generatedRows),
+    "## Source Mapping", "",
+    ...table(
+      ["Source", "Generated file", "Chunk", "Source lines", "UTF-16 chars", "Source chars", "Chunk chars"],
+      ["---", "---", "---:", "---:", "---:", "---:", "---:"],
+      mappingRows,
+    ),
+    "## Skipped Files", "", ...skippedFilesTable(params.skippedFiles),
+    "## Warnings", "", ...warningList(params.warnings),
+    "## Markers", "", markerTable(params.markers),
+    "## Stale Output Candidates", "", ...staleLines,
+  ]);
+}
