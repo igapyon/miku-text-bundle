@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildIndexMarkdown, buildPartMarkdown, buildPromptMarkdown } from "../src/main.js";
+import { buildIndexMarkdown, buildKnowledgeSourceMarkdown, buildPartMarkdown, buildPromptMarkdown } from "../src/main.js";
 import type { BundlePart, CollectedFile, Marker, SkippedFile } from "../src/main.js";
 
 describe("Markdown golden outputs", () => {
@@ -70,16 +70,146 @@ part: 1
 - Files/chunks: 1
 - Approx chars: 17
 
-### src/main.ts
+### FILE: src/main.ts
 
-- Characters: 17
-- Source characters: 17
-- Source lines: 2
+--- BEGIN FILE: src/main.ts ---
+
+Source code block
+Language: TypeScript
 
 ~~~ts
 const value = 1;
-
 ~~~
+
+--- END FILE: src/main.ts ---
+
+`);
+  });
+
+  it("renders JavaScript with explicit Agent-readable file block metadata", () => {
+    expect(buildPartMarkdown({
+      ...part,
+      chunks: [{
+        ...part.chunks[0]!,
+        relativePath: "src/example.js",
+        extension: "js",
+        content: "function hello() {\n  return \"hello\";\n}\n",
+      }],
+    })).toContain(`### FILE: src/example.js
+
+--- BEGIN FILE: src/example.js ---
+
+Source code block
+Language: JavaScript
+
+~~~js
+function hello() {
+  return "hello";
+}
+~~~
+
+--- END FILE: src/example.js ---`);
+  });
+
+  it("maps common source and structured-text extensions to explicit languages", () => {
+    const cases = [
+      ["src/app.py", "py", "Source code block", "Python", "python"],
+      ["src/main.go", "go", "Source code block", "Go", "go"],
+      ["config/settings.yaml", "yaml", "Source text block", "YAML", "yaml"],
+      ["web/index.html", "html", "Source code block", "HTML", "html"],
+    ] as const;
+
+    for (const [relativePath, extension, blockLabel, displayName, fenceLanguage] of cases) {
+      const output = buildPartMarkdown({
+        ...part,
+        chunks: [{ ...part.chunks[0]!, relativePath, extension }],
+      });
+      expect(output).toContain(`${blockLabel}\nLanguage: ${displayName}\n\n~~~${fenceLanguage}`);
+    }
+  });
+
+  it("uses neutral metadata for unknown extensions", () => {
+    expect(buildPartMarkdown({
+      ...part,
+      chunks: [{
+        ...part.chunks[0]!,
+        relativePath: "data/example.custom-format",
+        extension: "custom-format",
+      }],
+    })).toContain("Source content block\nLanguage: Unknown\n\n~~~\n");
+  });
+
+  it("preserves repeated blank lines inside file bodies in both modes", () => {
+    const content = "first\n\n\nsecond\n";
+    const blankLinePart: BundlePart = {
+      ...part,
+      chunks: [{ ...part.chunks[0]!, content }],
+    };
+
+    expect(buildPartMarkdown(blankLinePart)).toContain(content);
+    expect(buildKnowledgeSourceMarkdown(blankLinePart)).toContain(content);
+  });
+
+  it("escapes control characters in file block display paths", () => {
+    expect(buildPartMarkdown({
+      ...part,
+      chunks: [{
+        ...part.chunks[0]!,
+        relativePath: "docs/line\nbreak\tname.md",
+        extension: "md",
+      }],
+    })).toContain("### FILE: docs/line\\nbreak\\tname.md\n\n--- BEGIN FILE: docs/line\\nbreak\\tname.md ---");
+
+    expect(buildPartMarkdown({
+      ...part,
+      chunks: [{
+        ...part.chunks[0]!,
+        relativePath: "docs/literal\\n.md",
+        extension: "md",
+      }],
+    })).toContain("### FILE: docs/literal\\\\n.md");
+  });
+
+  it("keeps control characters, pipes, and backticks inside index path cells", () => {
+    const unusualPath = "docs/line\nbreak|`name`.md";
+    const index = buildIndexMarkdown({
+      ...indexParams,
+      parts: [{
+        ...part,
+        chunks: [{ ...part.chunks[0]!, relativePath: unusualPath }],
+      }],
+    });
+
+    expect(index).toContain("``docs/line\\nbreak\\|`name`.md``");
+    expect(index).not.toContain("docs/line\nbreak");
+  });
+
+  it("builds stable Knowledge source file-block Markdown", () => {
+    expect(buildKnowledgeSourceMarkdown({
+      ...part,
+      fileName: "knowledge-001.md",
+      chunks: [{
+        ...part.chunks[0]!,
+        relativePath: "docs/guide.md",
+        extension: "md",
+        content: "# Guide\n\nDetails.\n",
+      }],
+    })).toBe(`# Knowledge Source 001
+
+### FILE: docs/guide.md
+
+--- BEGIN FILE: docs/guide.md ---
+
+Source text block
+Language: Markdown
+
+~~~md
+# Guide
+
+Details.
+~~~
+
+--- END FILE: docs/guide.md ---
 
 `);
   });
@@ -91,10 +221,10 @@ const value = 1;
         ...part.chunks[0]!,
         content: "~~~md\ninside\n~~~\n",
       }],
-    })).toContain("~~~~ts\n~~~md\ninside\n~~~\n\n~~~~");
+    })).toContain("~~~~ts\n~~~md\ninside\n~~~\n~~~~");
   });
 
-  it("separates later file chunks with a horizontal rule", () => {
+  it("wraps every file chunk in explicit file boundary markers", () => {
     expect(buildPartMarkdown({
       ...part,
       charCount: 32,
@@ -110,7 +240,7 @@ const value = 1;
           chunkCount: 1,
         },
       ],
-    })).toContain("~~~\n\n---\n\n### docs/guide/setup.md");
+    })).toContain("--- END FILE: src/main.ts ---\n\n### FILE: docs/guide/setup.md\n\n--- BEGIN FILE: docs/guide/setup.md ---");
   });
 
   it("builds stable index Markdown", () => {

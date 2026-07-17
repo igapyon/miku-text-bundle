@@ -99,7 +99,9 @@ describe("createTextBundle", () => {
     expect(index).not.toContain(`Output directory: \`${join(root, "out")}\``);
     expect(index).not.toContain(".git/secret.ts");
     expect(index).not.toContain("ignored.ts");
-    expect(part).toContain("### src/main.ts");
+    expect(part).toContain("### FILE: src/main.ts\n\n--- BEGIN FILE: src/main.ts ---");
+    expect(part).toContain("Source code block\nLanguage: TypeScript");
+    expect(part).toContain("--- END FILE: src/main.ts ---");
     expect(part).toContain("~~~ts");
     expect(prompt).toContain("text-bundle-001.md");
     expect(prompt).toContain("text-bundle-response.md");
@@ -182,8 +184,9 @@ describe("createTextBundle", () => {
     const index = indexSection(readFileSync(result.indexPath, "utf8"));
     const firstPart = readFileSync(result.partPaths[0]!, "utf8");
     expect(index).toContain("--max-chars");
-    expect(firstPart).toContain("This file exceeded the size limit and was split.");
-    expect(firstPart.indexOf("This file exceeded the size limit and was split.")).toBeLessThan(firstPart.indexOf("~~~ts"));
+    expect(firstPart).toContain("Chunk: 1 / 2");
+    expect(firstPart).toContain("Source lines: 1-2");
+    expect(firstPart.indexOf("Chunk: 1 / 2")).toBeLessThan(firstPart.indexOf("~~~ts"));
   });
 
   it("excludes known binary extensions before reading files", () => {
@@ -279,13 +282,13 @@ describe("createTextBundle", () => {
     const result = createTextBundle(bundleOptions(root), new Date(2026, 4, 5, 13, 2));
 
     const part = readFileSync(result.partPaths[0]!, "utf8");
-    const headings = part.match(/^### .+$/gm) ?? [];
-    expect(headings).toEqual([
-      "### A.txt",
-      "### b.txt",
-      "### file-10.txt",
-      "### file-2.txt",
-      "### あ.txt",
+    const fileHeadings = part.match(/^### FILE: .+$/gm) ?? [];
+    expect(fileHeadings).toEqual([
+      "### FILE: A.txt",
+      "### FILE: b.txt",
+      "### FILE: file-10.txt",
+      "### FILE: file-2.txt",
+      "### FILE: あ.txt",
     ]);
   });
 
@@ -379,7 +382,7 @@ describe("createTextBundle", () => {
     }), new Date(2026, 4, 5, 12, 58))).toThrow("filenamePrefix must contain only");
   });
 
-  it("writes part Markdown with path headings and backtick code fences", () => {
+  it("writes handoff Markdown with explicit file boundaries and language labels", () => {
     const root = makeTempRepo();
     writeFile(join(root, "src", "main.ts"), "const value = 1;\n");
 
@@ -387,11 +390,10 @@ describe("createTextBundle", () => {
 
     const part = readFileSync(result.partPaths[0]!, "utf8");
     expect(part).toContain("# Text Bundle Part 001");
-    expect(part).toContain("### src/main.ts");
-    expect(part).toContain("- Characters: 17");
-    expect(part).toContain("- Source characters: 17");
-    expect(part).toContain("- Source lines: 2");
-    expect(part).toContain("~~~ts\nconst value = 1;\n\n~~~");
+    expect(part).toContain("### FILE: src/main.ts\n\n--- BEGIN FILE: src/main.ts ---");
+    expect(part).toContain("Source code block\nLanguage: TypeScript");
+    expect(part).toContain("~~~ts\nconst value = 1;\n~~~");
+    expect(part).toContain("--- END FILE: src/main.ts ---");
   });
 
   it("does not create output files in dry-run mode", () => {
@@ -427,8 +429,13 @@ describe("createTextBundle", () => {
     const knowledge = readFileSync(result.partPaths[0]!, "utf8");
     const index = readFileSync(result.managementIndexPath!, "utf8");
     expect(knowledge).toContain(markdownBody);
-    expect(knowledge).toContain("- Source path: `docs/guide.md`");
-    expect(knowledge).toContain("~~~ts\n// TODO implement\nconst value = 1;\n\n~~~");
+    expect(knowledge).toContain("### FILE: docs/guide.md\n\n--- BEGIN FILE: docs/guide.md ---");
+    expect(knowledge).toContain("Source text block\nLanguage: Markdown");
+    expect(knowledge).toContain("~~~md\n# Product");
+    expect(knowledge).toContain("--- END FILE: docs/guide.md ---");
+    expect(knowledge).toContain("### FILE: src/main.ts\n\n--- BEGIN FILE: src/main.ts ---");
+    expect(knowledge).toContain("Source code block\nLanguage: TypeScript");
+    expect(knowledge).toContain("~~~ts\n// TODO implement\nconst value = 1;\n~~~");
     expect(knowledge).not.toContain("Text Bundle Prompt");
     expect(knowledge).not.toContain("Acknowledgement");
     expect(knowledge).not.toContain("Agent Skill Handoff");
@@ -446,8 +453,8 @@ describe("createTextBundle", () => {
     const index = readFileSync(result.managementIndexPath!, "utf8");
 
     expect(result.partPaths).toHaveLength(3);
-    expect(readFileSync(result.partPaths[1]!, "utf8")).toContain("- Source chunk: 2 / 3");
-    expect(readFileSync(result.partPaths[1]!, "utf8")).toContain("- Source lines: 2-2");
+    expect(readFileSync(result.partPaths[1]!, "utf8")).toContain("Chunk: 2 / 3");
+    expect(readFileSync(result.partPaths[1]!, "utf8")).toContain("Source lines: 2-2");
     expect(index).toContain("| `large.md` | `knowledge-002.md` | 2 / 3 | 2-2 | 5-10 | 15 | 5 |");
   });
 
