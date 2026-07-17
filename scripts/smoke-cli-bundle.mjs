@@ -88,6 +88,9 @@ function assertKnowledgeSourceMode() {
   const part = readFileSync(join(knowledgeOutputDirectory, partFileName), "utf8");
   assertFile(join(knowledgeOutputDirectory, partFileName), "Knowledge source part");
   assertFile(join(knowledgeOutputDirectory, indexFileName), "Knowledge source index");
+  assertIncludes(part, "### FILE: source.md", partFileName);
+  assertIncludes(part, "--- BEGIN FILE: source.md ---", partFileName);
+  assertIncludes(part, "Source text block\nLanguage: Markdown", partFileName);
   assertIncludes(part, "# Knowledge source content", partFileName);
   assertExcludes(part, "prompt: true", partFileName);
   assertExcludes(part, "terminal: true", partFileName);
@@ -118,8 +121,12 @@ function assertSmokeOutput() {
   assertIncludes(index, "README.md", indexFileName);
   assertIncludes(index, "src/Legacy.java", indexFileName);
   assertIncludes(prompt, "text-bundle-001.md", promptFileName);
-  assertIncludes(part, "### README.md", firstPartFileName);
-  assertIncludes(part, "### src/Legacy.java", firstPartFileName);
+  assertIncludes(part, "### FILE: README.md", firstPartFileName);
+  assertIncludes(part, "--- BEGIN FILE: README.md ---", firstPartFileName);
+  assertIncludes(part, "Source text block\nLanguage: Markdown", firstPartFileName);
+  assertIncludes(part, "### FILE: src/Legacy.java", firstPartFileName);
+  assertIncludes(part, "--- BEGIN FILE: src/Legacy.java ---", firstPartFileName);
+  assertIncludes(part, "Source code block\nLanguage: Java", firstPartFileName);
   assertIncludes(part, "こんにちは", firstPartFileName);
 }
 

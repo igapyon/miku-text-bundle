@@ -2,7 +2,7 @@
 
 ## Current Status
 
-- Package and CLI version is `1.5.1`.
+- Package and CLI version is `1.6.0`.
 - Initial Node.js / TypeScript CLI implementation is functionally in place.
 - The project is in late-stage hardening before the first practical release.
 - `npm run build` currently runs TypeScript build, CLI bundle generation, Vitest tests, `npm pack --dry-run`, and bundle smoke testing.
@@ -21,15 +21,29 @@
 - Generated Markdown Part has no fixed rendered-character limit; splitting is based on the approximate source-content limit set by `--max-chars`.
 - `--filename-prefix` can replace the generated Markdown file basename prefix while preserving the default `text-bundle` names when omitted.
 - If the input contains `SKILL.md` or `skills/<skill-name>/SKILL.md`, the final Part index always includes Agent Skill handoff guidance.
+- Both handoff and Knowledge source files use explicit BEGIN/END file boundaries, content block labels, human-readable language names, and collision-safe tilde fences.
 
-## Completed: Knowledge Source Mode for v1.5.0
+## Completed: Agent-Readable File Blocks for v1.6.0
 
-Implementation and verification completed on 2026-07-16. The detailed contract and checklist below are retained as the maintenance and Node.js/Java parity reference.
+- Added a shared file block renderer used by both `handoff` and `knowledge-source` modes.
+- Added searchable `### FILE: <path>` headings and matching `BEGIN FILE` / `END FILE` boundaries around every file or split chunk.
+- Added `Source code block` / `Source text block` labels and human-readable language names before every tilde-fenced body.
+- Added mappings for common source and structured-text formats; unknown extensions use `Source content block` / `Language: Unknown`.
+- Kept dynamic fence extension when source content contains three or more consecutive tildes.
+- Preserved repeated blank lines inside fenced source bodies in both modes.
+- Defined `rg '^### FILE:'` as a candidate-heading search and kept exact enumeration in the terminal or management index.
+- Escaped backslashes and control characters in displayed paths so file-block markers and index cells remain single-line records.
+- Added chunk number and source line range inside split file blocks.
+- Updated golden, integration, subprocess, package, documentation, and version contracts for `1.6.0`.
+
+## Completed: Knowledge Source Mode for v1.5.0, Maintained through v1.6.0
+
+Initial implementation and verification completed on 2026-07-16. The contract was updated on 2026-07-17 for the v1.6.0 shared Agent-readable file-block format. The detailed contract and checklist below are the current maintenance and Node.js/Java parity reference rather than a byte-compatible record of the original v1.5.0 renderer.
 
 ### Agreed Scope and Compatibility
 
 - Add `--mode handoff|knowledge-source` and keep `handoff` as the default when `--mode` is omitted.
-- Preserve the existing v1.4.0 handoff filenames, Markdown structure, prompt, terminal index, diagnostics, Agent Skill handoff, and defaults.
+- Preserve the established handoff filenames, prompt, terminal index, diagnostics, Agent Skill handoff, and defaults while using the v1.6.0 shared file-block renderer for collected source bodies.
 - Generate Markdown only in `knowledge-source` mode. Conversion to `.docx` or another registration format, including possible use of `miku-md2docx`, is outside this repository's scope.
 - Keep registration-target file size limits outside this repository's scope. The caller selects an appropriate `--max-chars` value.
 - Keep the current `--max-chars` default of `120000` and continue supporting `--max-input-file-bytes` in both modes.
@@ -49,11 +63,11 @@ Implementation and verification completed on 2026-07-16. The detailed contract a
 
 - Do not include the Text Bundle Prompt, reading-order instructions, acknowledgement instructions, terminal instructions, response-file instructions, or Agent Skill Handoff guidance.
 - Do not include warnings, skipped-file diagnostics, or extracted `TODO` / `FIXME` / `XXX` marker summaries in Knowledge source files.
-- Preserve each source body without summarizing, paraphrasing, or omitting content.
+- Preserve each source body, including repeated blank lines, without summarizing, paraphrasing, normalizing, or omitting content.
 - Include neutral provenance for each source body: normalized relative source path and, when split, chunk number and source line range.
 - Preserve source-document boundaries whenever possible. Split only a source document that individually exceeds `--max-chars`, preferring line boundaries before a character-position fallback.
 - Do not add YAML front matter to Knowledge source files in the initial implementation. In particular, do not copy handoff-only `prompt` or `terminal` metadata into this mode.
-- Embed `.md` source bodies as raw Markdown after the neutral source heading and provenance block so headings and prose remain useful for retrieval. Embed non-Markdown text and source code in a dynamically sized code fence using the existing fence-safety logic. In both cases, keep the source content unchanged inside its container.
+- Embed every source body in the shared `### FILE` / BEGIN / END file-block contract. Use `Source code block` or `Source text block` with an explicit language for known extensions, and use `Source content block` / `Language: Unknown` for unknown extensions. Fence Markdown, text, and source code with the dynamically sized tilde fence while keeping source content unchanged inside the fence.
 
 ### Management Index and Output Safety
 
@@ -67,10 +81,10 @@ Implementation and verification completed on 2026-07-16. The detailed contract a
 ### Implementation and Verification
 
 - Keep shared discovery, decoding, exclusion, ordering, marker extraction, size checks, and source splitting in the product core.
-- Add a dedicated Knowledge source renderer and management-index renderer without changing the handoff renderer's output contract.
+- Use one shared file-block renderer for handoff and Knowledge source bodies, with separate outer renderers for their workflow-specific prompt, terminal index, and management index contracts.
 - Extend result types so callers can distinguish Knowledge source files from the management index without breaking existing consumers unnecessarily.
 - Add CLI parser, help, renderer, bundler, dry-run, subprocess, and package regression tests for both modes.
-- Add golden fixtures proving that Knowledge source bodies contain no handoff instructions or diagnostics and that source/chunk provenance is complete.
+- Add golden fixtures proving that Knowledge source bodies use the shared file-block contract, contain no handoff instructions or diagnostics, preserve source whitespace, and retain complete source/chunk provenance.
 - Add a regression fixture proving that omitted `--mode` and explicit `--mode handoff` produce the established handoff output.
 - Verify byte-for-byte deterministic output across repeated runs with identical input and settings.
 - Define shared fixtures for later Node.js/Java parity verification of option names, ordering, splitting, filenames, provenance, and management-index structure. Java implementation remains work in its own repository.
@@ -95,33 +109,48 @@ out/
 
 Only the numbered files are Knowledge source candidates. `knowledge-index.md` is a local management and diagnostic artifact.
 
-Use this initial numbered-file structure:
+Use this current numbered-file structure:
 
 ```markdown
 # Knowledge Source 001
 
-## Source: docs/example.md
+### FILE: docs/example.md
 
-- Source path: `docs/example.md`
+--- BEGIN FILE: docs/example.md ---
 
-<unchanged raw Markdown source body>
+Source text block
+Language: Markdown
+
+~~~md
+<unchanged Markdown source body>
+~~~
+
+--- END FILE: docs/example.md ---
 ```
 
 When a source is split, add neutral provenance without adding a warning to the Knowledge source body:
 
 ```markdown
-## Source: docs/large.md
+### FILE: docs/large.md
 
-- Source path: `docs/large.md`
-- Source chunk: 2 / 4
-- Source lines: 301-612
+--- BEGIN FILE: docs/large.md ---
 
+Chunk: 2 / 4
+Source lines: 301-612
+
+Source text block
+Language: Markdown
+
+~~~md
 <unchanged source chunk body>
+~~~
+
+--- END FILE: docs/large.md ---
 ```
 
 Use 1-based inclusive line numbers. For a character fallback inside a single oversized line, also retain 0-based, end-exclusive UTF-16 source character offsets in the internal chunk model and management index. This makes Node.js slicing explicit and gives the Java implementation a reproducible parity target.
 
-Separate multiple source bodies with a neutral Markdown thematic break. Do not place warning prose, receipt instructions, or AI behavior text around the separator. An empty collection still generates `knowledge-001.md` with the file title and no fabricated source body, plus `knowledge-index.md` with zero collected files.
+Separate multiple source bodies through their explicit END marker and next `### FILE` heading; do not add an extra thematic break. Do not place warning prose, receipt instructions, or AI behavior text around the boundary. An empty collection still generates `knowledge-001.md` with the file title and no fabricated source body, plus `knowledge-index.md` with zero collected files.
 
 The management index should use this stable section order:
 
@@ -165,8 +194,8 @@ Implement the change in this order so handoff behavior remains available through
    - Detect existing `<prefix>-NNN.md` files not present in the current plan and report them as stale candidates. Exclude `<prefix>-index.md` from that numbered-file check.
 
 4. `src/markdown.ts`
-   - Leave `buildPromptMarkdown`, the existing handoff `buildPartMarkdown`, and embedded terminal-index behavior byte-compatible.
-   - Add separate functions for Knowledge source numbered Markdown and the management index; do not add mode conditionals throughout existing handoff rendering functions.
+   - Keep `buildPromptMarkdown` and embedded terminal-index semantics stable while allowing the handoff source-body format to follow the shared v1.6.0 file-block contract.
+   - Use a shared file-block renderer from both `buildPartMarkdown` and Knowledge source numbered Markdown; keep the management index separate and do not add mode conditionals throughout source-body rendering.
    - Reuse escaping, table, language selection, and dynamic fence helpers where safe.
    - Ensure management-index table values escape pipes and newlines consistently.
 
@@ -190,14 +219,16 @@ Implement the change in this order so handoff behavior remains available through
   - mode-dependent default prefixes and explicit prefix override work
   - help describes both artifact sets and their roles
 - `test/markdown.test.ts`
-  - Knowledge source Markdown has stable golden output
-  - raw Markdown body remains unchanged
+  - Knowledge source Markdown has stable golden output using the shared file-block contract
+  - fenced Markdown and repeated source blank lines remain unchanged
+  - common source extensions receive explicit language metadata and unknown extensions use the neutral fallback
+  - control characters in displayed paths are escaped without creating extra marker lines
   - non-Markdown body uses a collision-safe fence
   - split provenance uses correct chunk, line, and optional character ranges
   - management index has the specified section order and escaped tables
   - no Knowledge source file contains prompt, acknowledgement, terminal, Agent Skill Handoff, skipped-file, warning, or marker sections
 - `test/bundler.test.ts`
-  - handoff default output remains unchanged
+  - handoff default and explicit handoff both use the current shared file-block contract
   - explicit handoff equals omitted mode
   - Knowledge source numbering and mapping are deterministic
   - ordinary files are not split merely to isolate documents; boundaries are retained until packing requires a new numbered file
@@ -208,7 +239,7 @@ Implement the change in this order so handoff behavior remains available through
 - `test/cli-subprocess.test.ts`
   - real CLI generation succeeds in both modes
   - `--dry-run --mode knowledge-source` writes no directory or file
-  - `--version` remains `1.5.0`
+  - `--version` matches the current package version (`1.6.0` for this contract revision)
 - `test/package.test.ts`
   - the v1.5.0 release note is included and no unintended runtime files are packed
 

@@ -43,6 +43,7 @@ CLI の詳細は [[miku-text-bundle] CLI リファレンス](https://qiita.com/i
 
 `v1.4.0` の変更点は [docs/release-notes-v1.4.0.md](docs/release-notes-v1.4.0.md) を参照してください。
 `v1.5.0` の変更点は [docs/release-notes-v1.5.0.md](docs/release-notes-v1.5.0.md) を参照してください。
+`v1.6.0` の変更点は [docs/release-notes-v1.6.0.md](docs/release-notes-v1.6.0.md) を参照してください。
 `v1.2.0` の変更点は [docs/release-notes-v1.2.0.md](docs/release-notes-v1.2.0.md) を参照してください。
 `v1.1.0` の変更点は [docs/release-notes-v1.1.0.md](docs/release-notes-v1.1.0.md) を参照してください。
 `v1.0.1` の変更点は [docs/release-notes-v1.0.1.md](docs/release-notes-v1.0.1.md) を参照してください。
@@ -171,7 +172,7 @@ knowledge-002.md
 knowledge-index.md
 ```
 
-番号付きファイルだけがKnowledge sourceへの登録候補です。番号付きファイルには、元ファイルの相対パス、必要に応じたチャンク番号と元行範囲、および元本文を収録します。Text Bundle Prompt、読み込み・応答指示、Agent Skill Handoff、警告、スキップ情報、marker一覧は収録しません。
+番号付きファイルだけがKnowledge sourceへの登録候補です。番号付きファイルには、元ファイルの相対パス、必要に応じたチャンク番号と元行範囲、および元本文を収録します。各ファイル本文は `### FILE: <path>` 見出し、`BEGIN FILE` / `END FILE` 境界、`Source code block` または `Source text block`、人間向け言語名、チルダ code fence を使う共通ファイルブロック形式で記録します。Text Bundle Prompt、読み込み・応答指示、Agent Skill Handoff、警告、スキップ情報、marker一覧は収録しません。
 
 `knowledge-index.md`は登録対象ではない管理用ファイルです。実行時の主要設定、生成ファイル、元ファイルとチャンクの対応、スキップ理由、警告、`TODO` / `FIXME` / `XXX` marker、旧生成物候補を記録します。
 
@@ -193,7 +194,34 @@ prefix は前後の空白を除去したうえで、`A-Z`、`a-z`、`0-9`、`.`�
 
 入力に `SKILL.md` または `skills/<skill-name>/SKILL.md` が含まれる場合、最終 Part には Agent Skill 向けの handoff 指示も記録します。この指示は、受信側の生成AIに `SKILL.md` を Agent Skill の一次指示として読み込み、この会話内で参照可能な状態として扱うよう促します。
 
-`text-bundle-*.md` には、収集したファイルを `### path/to/file.ts` のような見出しで区切り、本文を backtick code fence で記録します。
+`text-bundle-*.md` では、収集した各ファイルを検索しやすい `### FILE: path/to/file.ts` 見出しで示し、`--- BEGIN FILE: path/to/file.ts ---` と `--- END FILE: path/to/file.ts ---` で本文境界を区切ります。ファイル本文の前には `Source code block` または `Source text block` と、`Language: TypeScript` のような人間向け言語名を記録し、本文をチルダ code fence で囲みます。このファイルブロック形式は `handoff` と `knowledge-source` の両モードで共通です。
+
+Agentやスクリプトは `rg '^### FILE:'` でファイル見出し候補を素早く検索できます。ただし、収録した原文自身に同じ行が含まれる場合や、1ファイルが複数チャンクへ分割された場合は重複してヒットします。正確な収録ファイル・チャンク一覧には、handoffのterminal indexまたはKnowledge sourceの管理indexを使用してください。
+
+たとえば JavaScript ファイルは次のように記録します。
+
+````text
+### FILE: src/example.js
+
+--- BEGIN FILE: src/example.js ---
+
+Source code block
+Language: JavaScript
+
+~~~js
+function hello() {
+  return "hello";
+}
+~~~
+
+--- END FILE: src/example.js ---
+````
+
+元本文に3個以上の連続するチルダが含まれる場合、外側の fence は本文中の最長の連続チルダより1文字長くします。大きなファイルを分割した場合は、BEGIN境界の後にチャンク番号と元行範囲も記録します。
+
+TypeScript、JavaScript、Java、C#、Python、Go、Rust、C/C++、Kotlin、Ruby、PHP、shell、HTML/CSS、Markdown、JSON、YAML、XML、TOMLなど、代表的な拡張子には言語名とfence識別子を割り当てます。未知の拡張子は誤ってplain textやソースコードと断定せず、`Source content block` と `Language: Unknown` を記録します。
+
+ファイルブロックの見出しとBEGIN/END境界を1行に保つため、パス中のバックスラッシュ、改行、タブ、その他の制御文字は `\\`、`\n`、`\t`、`\u001f` のように表示用エスケープします。管理indexは元の収集パスと生成先の対応を保持します。
 
 先頭 Part には、複数メッセージで生成AIへ貼り付けるための順序、受領手順、終端 Part、保存する場合の推奨回答ファイル名 `text-bundle-response.md`、回答形式を記録します。
 

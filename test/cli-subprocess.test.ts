@@ -55,7 +55,7 @@ describe("CLI subprocess", () => {
     expect(stdout).toContain("directories ignored");
     expect(stdout).toContain("file(s) ignored");
     expect(readOutputFile(output, indexFileName)).toContain("src/main.ts");
-    expect(readOutputFile(output, firstPartFileName)).toContain("### src/main.ts");
+    expect(readOutputFile(output, firstPartFileName)).toContain("### FILE: src/main.ts");
     expect(readOutputFile(output, promptFileName)).toContain("text-bundle-response.md");
   });
 
@@ -110,7 +110,7 @@ describe("CLI subprocess", () => {
 
     expect(stdout).toContain("sample-repo-text-bundle-001.md");
     expect(readOutputFile(output, "sample-repo-text-bundle-001.md")).toContain("sample-repo-text-bundle-001.md");
-    expect(readOutputFile(output, "sample-repo-text-bundle-001.md")).toContain("### README.md");
+    expect(readOutputFile(output, "sample-repo-text-bundle-001.md")).toContain("### FILE: README.md");
     expect(readOutputFile(output, "sample-repo-text-bundle-001.md")).toContain("# Text Bundle Index");
   });
 
@@ -122,7 +122,7 @@ describe("CLI subprocess", () => {
     const stdout = runCli(["--input", root, "--output", output, "--mode", "knowledge-source"]);
 
     expect(stdout).toContain("1 knowledge file(s), 1 management index");
-    expect(readOutputFile(output, "knowledge-001.md")).toContain("- Source path: `README.md`");
+    expect(readOutputFile(output, "knowledge-001.md")).toContain("### FILE: README.md");
     expect(readOutputFile(output, "knowledge-001.md")).not.toContain("Text Bundle Prompt");
     expect(readOutputFile(output, "knowledge-index.md")).toContain("# Knowledge Bundle Index");
   });
